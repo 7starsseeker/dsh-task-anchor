@@ -21,9 +21,11 @@ Common root: the todo projection is cleared at `turn/start` (`packages/todo/tool
 
 ## What it does
 
-1. **Contract** (`task-anchor:contract`, a system-prompt section, ~150 tokens per request): a mid-turn user message is new input, not automatically a replacement for the task in progress. Classify it first — added constraint / correction of the current step / question / separate new task / explicit change or cancellation — then act. Never silently abandon unfinished work.
+1. **Contract** (`task-anchor:contract`, a system-prompt section, ~320 tokens per request): a mid-turn user message is new input, not automatically a replacement for the task in progress. Classify it first — added constraint / correction of the current step / question / separate new task / explicit change or cancellation — then act. The same section says how to record a suspended plan, when a finding is expensive enough to persist, that an answer to your own question is a decision rather than a fact, and that work the user cancelled is not re-narrated afterwards. Never silently abandon unfinished work.
 
-2. **Guard** (`agent/turn-stopping`): when all of the following hold, `agent.steer()` returns one notice to the turn:
+2. **Suspended plan** (`agent/pre-step` → one JSON file): when a mid-turn message arrives while todos are open, the open items are written once to `suspended-<session>.json`. Every later assembly renders them back as a `## Suspended work` block — only the items still open, the message that interrupted, where the turn stopped, and the session event number that holds the transcript for `session_event_read`. When those items leave the list (done or cancelled) the file is deleted. With no snapshot but open work, the section ends with a single `Open items: …` line, because the todo panel is a per-turn surface and the log is not.
+
+3. **Guard** (`agent/turn-stopping`): when all of the following hold, `agent.steer()` returns one notice to the turn:
    - this turn observed a mid-turn user message (`step > 1` and the batch contains a `source.kind === 'user'` message), **or** `inbox.nextTurn` already holds a queued message;
    - the latest `todo/write` (within `maxStaleTurns` turns) still has `pending` / `in_progress` items;
    - the turn's final sentence is not a question (`skipWhenAsking`);
@@ -31,20 +33,24 @@ Common root: the todo projection is cleared at `turn/start` (`packages/todo/tool
 
    The model takes one more step: finish, or say what remains and why.
 
-3. **Observation** (`agent/pre-step`): read-only bookkeeping of which turns received an interjection; visible in debug logs.
+4. **Observation** (`agent/pre-step`): read-only bookkeeping of which turns received an interjection; visible in debug logs.
+
+Snapshots are swept opportunistically: writing one deletes *other* sessions' `suspended-*.json` older than `storeTtlDays`. The plugin never touches DSH's own session archive.
 
 ## Install (local profile)
 
 ```powershell
-# 1) register the directory as a profile dependency and bundle
-#    T:\Deepseek-harness\.dsh\profiles\desktop\package.json:
-#    dependencies      -> "dsh-task-anchor": "link:T:/dsh-task-anchor"
+# 1) register the directory as a profile dependency and bundle.
+#    Edit <DSH_HOME>/profiles/desktop/package.json:
+#    dependencies        -> "dsh-task-anchor": "link:<path-to-this-repo>"
 #    dsh.profile.bundles -> "dsh-task-anchor"
 # 2) link it
-cd T:\Deepseek-harness\.dsh\profiles\desktop
+cd <DSH_HOME>/profiles/desktop
 pnpm install
 # 3) restart DSH (host plugins load at boot; profile bundles are not hot-reloaded)
 ```
+
+`<DSH_HOME>` is the directory that contains `profiles/` (wherever your DSH install keeps its profile data).
 
 ## Config
 
@@ -53,13 +59,17 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `enabled` | `true` | Master switch; `false` registers nothing |
-| `contract` | `true` | Inject the prompt contract (~150 tokens/request) |
+| `contract` | `true` | Inject the prompt contract (~320 tokens/request); also gates the anchor block |
 | `guard` | `true` | Enable the turn-stopping guard |
+| `onInterject` | `triage` | On a mid-turn message, persist the suspended plan (`triage`) or only keep the guard (`off`) |
+| `returnPolicy` | `auto` | Nudge the turn (`auto`) or record only until the user speaks again (`wait`) |
 | `triggerQueued` | `true` | Also act when a queued message is waiting for the next turn |
 | `skipWhenAsking` | `true` | Skip when the turn ended with a question |
 | `maxNudgesPerSession` | `6` | Nudges per session; `0` = observe only |
-| `maxNoticeItems` | `5` | Items listed in the notice |
-| `maxStaleTurns` | `3` | Turns after which a todo list is stale |
+| `maxNoticeItems` | `5` | Items listed in the notice / the `Open items:` line |
+| `maxStaleTurns` | `3` | Turns after which a todo list is stale (guard only) |
+| `storeDir` | `<DSH_HOME>/task-anchor` | Where `suspended-<session>.json` lives; falls back to `~/.dsh/task-anchor` |
+| `storeTtlDays` | `7` | Age after which another session's stale snapshot is swept while writing; `0` disables |
 
 ## Boundaries
 
@@ -77,7 +87,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 ## Verify
 
 ```powershell
-cd T:\dsh-task-anchor
+cd <path-to-this-repo>
 node --test tests/     # 36 tests: policy decisions + apply() wiring, no harness needed
 ```
 
@@ -85,7 +95,7 @@ Manual end-to-end after a restart: give the agent a three-step task that starts 
 
 Log keys: `task-anchor: steered a reminder` (info), `task-anchor: mid-turn user message observed` (debug).
 
-Confirmed 2026-11-15: after a restart the session system prompt contains the `## Mid-turn user messages` contract section, so the plugin loads and the section is injected. The guard's end-to-end trigger is still unverified.
+Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system prompt contains the contract section, an unrelated mid-turn question produced a `suspended-<session>.json` plus the `## Suspended work` block, and the turn closed with an `[task-anchor]` notice. Rewriting the todo list without the suspended items deleted the file. `returnPolicy: wait` is the only branch still untested.
 
 ## Status
 

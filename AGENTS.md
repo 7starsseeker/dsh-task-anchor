@@ -15,17 +15,17 @@ DSH 插件仓。作用域：让模型在中途收到用户消息时先判断它�
 
 ## 生效方式
 
-已在 desktop profile 挂载（`dsh-task-anchor": "link:T:/dsh-task-anchor"` + `dsh.profile.bundles` 里有 `dsh-task-anchor`）。
+挂载方式见 `README.md` 的 Install 段（profile `dependencies` 用 `link:` + `dsh.profile.bundles` 里列包名）。本仓当前以 link 方式接在一个 desktop profile 上。
 
 - 改 `lib/**`：重启 DSH 进程生效。
-- 改 profile 的 `package.json`：还要在 `T:\Deepseek-harness\.dsh\profiles\desktop` 跑 `pnpm install`。
+- 改 profile 的 `package.json`：还要在 `<DSH_HOME>/profiles/desktop` 跑 `pnpm install`。
 - 改 `cordis.patch.yml` 的 config：重启生效；临时改行为也可以直接改 config 再重启。
 
 ## 边界
 
 - 不改 DSH core。要改「插话在模型眼里与普通消息同形」这个语义，先写 `.agents/notes` 的 Agent Note（该不变量出自 `2026-07-20-unwrap-injected-content-envelopes.md`）。
-- 不要给本仓建 `.codegraph/` 索引（工作区根目录已禁用；daemon 自动生成的空脚手架已在 .gitignore）。
-- 本机 shell 只有 pwsh；删除只按显式清单，不用通配。
+- 不要给本仓建 `.codegraph/` 索引：本仓小、结构稳定，索引噪音大于收益。
+- 维护环境是 Windows + PowerShell 7；命令示例一律用 pwsh 语法。删除只按显式清单，不用通配。
 
 ## 现状
 

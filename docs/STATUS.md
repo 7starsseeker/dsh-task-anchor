@@ -8,7 +8,7 @@ v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三�
 
 ## 要解决的问题（出处）
 
-执行指令途中用户插话，agent 往往立刻转去做插话内容并输出，原任务做一半丢掉，或注意力被带偏。原会话调研报告：`T:\Deepseek-harness\.dsh\notes\2026-11-15-steering-interjection-research.md`（索引在 `notes\INDEX.md`）。
+执行指令途中用户插话，agent 往往立刻转去做插话内容并输出，原任务做一半丢掉，或注意力被带偏。上游调研笔记没有随仓发布（做这个插件时在 DSH 的 notes 目录里留过一份，含会话实证；公开版不复述其中的会话细节）。
 
 根因是三件事叠加，其中两件在 DSH core、本插件只能绕：
 
@@ -32,13 +32,13 @@ v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三�
 
 - 单测：`node --test tests/` → `tests 36` / `pass 36` / `fail 0`（policy 18 + plugin 17 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
-- profile 集成校验（headless 脚本）：`resolved: T:\dsh-task-anchor` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
-- 符号链接：`node_modules\dsh-task-anchor` → `..\..\..\..\..\dsh-task-anchor`（SymbolicLink）。
-- **live**：DSH 重启后（GUI 端口曾为 49048 → 12174 → 53176），会话 system prompt 中出现本插件注入的 `## Mid-turn user messages` 段 ⇒ 插件已加载、契约生效。
-- **live（2026-11-15 18:29–18:30，v0.2.0 修复后的第一次正向结果）**：真实插话「所以说晚上吃点什么好呢……」到达后，`DSH_HOME\task-anchor\suspended-session-2d6756c5-….json` 落盘（662 B，version 2，items = 当时 5 条调查 todo），同一回合 prompt 出现 `## Suspended work`；回合收尾时收到 `[task-anchor]` notice 并继续运行（`agent.steer` 路径）。
-- **真实日志集成**（脚本驱动 `apply()`，喂本会话的 1413 条真实事件 + 真实插话事件 seq 96）：`## Suspended work` 正确列出 5 条真实 todo、插话原文「哦对了今天下午吃啥好」；把清单改写成不含这些项后，段落消失且 `suspended-*.json` 被删。这不是 live 会话（插件尚未重启加载新代码），但走的是真实事件形状。
+- profile 集成校验（headless 脚本）：`resolved: <本仓路径>` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
+- 符号链接：`node_modules/dsh-task-anchor` → 本仓目录（SymbolicLink）。
+- **live**：DSH 重启后，会话 system prompt 中出现本插件注入的 `## Mid-turn user messages` 段 ⇒ 插件已加载、契约生效（GUI 端口每次重启不同，不记录）。
+- **live（2026-11-15 18:29–18:30，v0.2.0 修复后的第一次正向结果）**：真实插话「所以说晚上吃点什么好呢……」到达后，`<storeDir>/suspended-<session>.json` 落盘（662 B，version 2，items = 当时 5 条调查 todo），同一回合 prompt 出现 `## Suspended work`；回合收尾时收到 `[task-anchor]` notice 并继续运行（`agent.steer` 路径）。
+- **真实日志集成**（脚本驱动 `apply()`，喂一次真实长会话的 1413 条事件 + 真实插话事件）：`## Suspended work` 正确列出 5 条真实 todo、插话原文；把清单改写成不含这些项后，段落消失且 `suspended-*.json` 被删。这不是 live 会话（插件尚未重启加载新代码），但走的是真实事件形状。
 - **live 反证（2026-11-15 17:48 会话）**：真实插话后 turn 2 正常结束，session log 里没有任何 `source.kind === "plugin:task-anchor"` 事件、也没有第 4 个 step ⇒ 守卫没触发。解压日志定位到 `Session` 没有 `events` 成员，`openTodos(undefined)` 抛错被 catch 吞掉。修复见 `lib/index.js` 的 `snapshotEvents()` 与 `lib/policy.js` 的 `data.message`。
-- **live（2026-11-15 18:44–18:49，取消路径）**：插话「香锅这个不用查了，直接帮我搜一下高德API如何接入」到达时 pre-step 写盘（items = 当时 pending 的香锅项）；模型按契约重写清单去掉该项，下一轮 `turn-stopping` 交集为空 ⇒ `suspended-session-2d6756c5-….json` 被删、`## Suspended work` 消失。18:49 复查 `DSH_HOME\task-anchor` 只剩一个旧版遗留文件（`suspended-unknown.json`，157 B，18:17，旧代码还没拿到 session id 时写的），该文件按精确路径手工删除后目录为 0 文件 ⇒ 删除是**按 session id 精确删**，不是清目录。
+- **live（2026-11-15 18:44–18:49，取消路径）**：插话「这个任务不用查了，换成另一个」到达时 pre-step 写盘（items = 当时 pending 的旧任务项）；模型按契约重写清单去掉该项，下一轮 `turn-stopping` 交集为空 ⇒ `suspended-<session>.json` 被删、`## Suspended work` 消失。复查 store 目录只剩一个旧版遗留文件（`suspended-unknown.json`，157 B，旧代码还没拿到 session id 时写的），按精确路径手工删除后目录为 0 文件 ⇒ 删除是**按 session id 精确删**，不是清目录。
 
 ## 未验证（下一个会话从这里开始）
 

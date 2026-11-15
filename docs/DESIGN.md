@@ -26,7 +26,7 @@ turn 边界
 两条关键不变量：
 
 1. **没有「只进请求、不进日志」的通道。** pre-step 返回的 `messages` 会在 `agent.ts:289` 逐条 `session.append`；`assembly` 与它们分离，但它只是 system prompt。所以「在插话旁边贴一个临时说明」在插件层做不到，只能进持久转录——这正是契约放 system prompt（每次请求动态展开、不落盘）的原因。
-2. **pre-step 的 `decision.messages` 是替换整个批次。** 监听器必须 `await next()` 后**追加**，返回自己的数组会把用户消息吞掉（`T:\jev-guard\adapters\dsh\index.js` 的注释里记了这个坑）。
+2. **pre-step 的 `decision.messages` 是替换整个批次。** 监听器必须 `await next()` 后**追加**，返回自己的数组会把用户消息吞掉（这是水坝式 middleware 的通用坑，与具体插件无关）。
 
 ## 2. 为什么不做关系判定
 

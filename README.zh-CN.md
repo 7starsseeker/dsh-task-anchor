@@ -19,40 +19,47 @@ DSH 里插话有两条投递路径，两条都可能把原任务丢掉：
 
 两条路径的共同点：**todo 清单在 `turn/start` 时被投影清空**（`packages/todo/tool-todo/src/index.ts`），模型下一轮不再被提醒「还有活没干」。
 
-## 它做的三件事
+## 它做的四件事
 
 1. **契约（system prompt section，`task-anchor:contract`）**
-   每次请求注入约 150 tokens 的规则：中途 user 消息是「新输入」，不是「任务的替代品」；先判断它属于补充约束 / 修正当前步 / 追问 / 新任务 / 改目标或中止，再决定动作；永不静默丢弃未完成的工作。
+   每次请求注入约 320 tokens 的规则：中途 user 消息是「新输入」，不是「任务的替代品」；先判断它属于补充约束 / 修正当前步 / 追问 / 新任务 / 改目标或中止，再决定动作。同一段还写着：被挂起的计划怎么记账、什么中间结论值得落盘、用户回答你问过的问题是**决定**而不是情报、被取消的任务之后不再复述。永不静默丢弃未完成的工作。
 
-2. **守卫（`agent/turn-stopping`）**
+2. **挂起计划（`agent/pre-step` → 一个 JSON 文件）**
+   插话到达且清单里还有未完成项时，把当时的未完成项写一次到 `suspended-<session>.json`。之后每次组装 prompt 都按「挂起项 ∩ 当前未完成项」渲染回 `## Suspended work`：还剩哪些、打断它的是哪句话、停在哪、以及当时的会话事件号（可用 `session_event_read` 回读转录）。这些项从清单里消失（做完或取消）即删文件。没有快照但有待办时，段末只追加一行 `Open items: …`——todo 面板只是当轮表面，日志不是。
+
+3. **守卫（`agent/turn-stopping`）**
    满足全部条件时，用 `agent.steer()` 把一条 notice 塞回当前回合：
-   - 本回合观察到中途 user 消息（`step > 1` 且批次里有 `source.kind === 'user'`），**或** `inbox.nextTurn` 里有排队消息（下回合要换人）；
+   - 本回合观察到中途 user 消息（`step > 1` 且批次里有 `source.kind === 'user'`），**或** `inbox.nextTurn` 里有排队消息；
    - 最近一次 `todo/write`（不超过 `maxStaleTurns` 个回合）里还有 `pending` / `in_progress` 项；
    - 本回合最后一句不是提问（默认跳过，避免打断「停下来问用户」）；
    - 本回合没催过、会话内没超过 `maxNudgesPerSession`。
 
    模型于是多走一步：干完，或写明「剩下 X，因为 Y」。
 
-3. **观察（`agent/pre-step`）**
+4. **观察（`agent/pre-step`）**
    只读不改，记录本回合是否收到插话，供守卫判断；debug 日志可见。
 
-## 安装（本机 profile）
+快照会顺手清扫：写新快照时删掉**其它会话**里超过 `storeTtlDays` 天的 `suspended-*.json`。插件从不触碰 DSH 自己的会话归档。
+
+## 安装（挂进一个 profile）
 
 ```powershell
 # 1) 把本目录登记成 profile 依赖与 bundle
-#    编辑 T:\Deepseek-harness\.dsh\profiles\desktop\package.json：
-#    dependencies 加  "dsh-task-anchor": "link:T:/dsh-task-anchor"
+#    编辑 <DSH_HOME>/profiles/desktop/package.json：
+#    dependencies 加  "dsh-task-anchor": "link:<本仓路径>"
 #    dsh.profile.bundles 加 "dsh-task-anchor"
 # 2) 建立链接
-cd T:\Deepseek-harness\.dsh\profiles\desktop
+cd <DSH_HOME>/profiles/desktop
 pnpm install
 # 3) 重启 DSH（宿主插件在启动时加载，热重载不覆盖 profile bundle）
 ```
 
+`<DSH_HOME>` 指包含 `profiles/` 的那一层目录（DSH 存放 profile 数据的位置）。
+
 验证加载：
 
 ```powershell
-Get-Item T:\Deepseek-harness\.dsh\profiles\desktop\node_modules\dsh-task-anchor |
+Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
   Select-Object Name, LinkType, Target
 ```
 
@@ -87,7 +94,7 @@ Get-Item T:\Deepseek-harness\.dsh\profiles\desktop\node_modules\dsh-task-anchor 
 ## 验证
 
 ```powershell
-cd T:\dsh-task-anchor
+cd <本仓路径>
 node --test tests/     # 36 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
