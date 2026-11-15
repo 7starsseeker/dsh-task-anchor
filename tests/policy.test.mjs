@@ -204,3 +204,17 @@ test('contract turns a granted answer into a reported action', () => {
   assert.match(body, /not a fact to file away/)
   assert.match(body, /states what ran and what came back/)
 })
+
+test('wait mode asks the model to stop; auto mode asks it to resume', () => {
+  const wait = buildContractText({ returnPolicy: 'wait' })
+  assert.match(wait, /### Waiting for the user/)
+  assert.match(wait, /do not pick it back up until the user asks/)
+  assert.doesNotMatch(wait, /### Resuming suspended work/)
+
+  const auto = buildContractText({ returnPolicy: 'auto' })
+  assert.match(auto, /### Resuming suspended work/)
+  assert.doesNotMatch(auto, /### Waiting for the user/)
+
+  // No options = the default profile (auto).
+  assert.match(buildContractText(), /### Resuming suspended work/)
+})

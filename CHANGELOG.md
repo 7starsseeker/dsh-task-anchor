@@ -10,6 +10,7 @@ Net changes between **public releases**. Internal iterations that never shipped 
 - How to record a suspended plan (cancel = rewrite the list without it, amend = edit the item, suspend = keep it and add the new work), and that a cancelled task is not re-narrated afterwards.
 - An answer to a question you asked is a decision, not a fact: name the action in a todo, run it, and only consider it done once the reply says what ran and what came back.
 - Two tasks at once: execution is serial; when to deliver incrementally; the three conditions that justify handing one task to a subagent; ordering (user-specified > dependency > shorter first > closer to done).
+- The closing rule depends on `returnPolicy`: `auto` states that a reminder will be steered back in, `wait` asks for a stop after the interrupting message and says the suspended plan stays untouched until asked.
 - Findings that are expensive to obtain again get written to a file and referenced from a todo; cheap lookups do not.
 
 **Suspended plan**
@@ -28,4 +29,4 @@ Net changes between **public releases**. Internal iterations that never shipped 
 
 **Maintenance**: writing a snapshot sweeps other sessions' `suspended-*.json` older than `storeTtlDays`; DSH's session archive is never touched.
 
-**Tests**: 36 (`node --test tests/`, no harness needed). Zero runtime dependencies.
+**Tests**: 37 (`node --test tests/`, no harness needed). Zero runtime dependencies.

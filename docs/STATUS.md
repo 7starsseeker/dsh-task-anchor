@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。只剩 `returnPolicy: wait` 一条未实测。
+v0.2.2 已实现、**37 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。`returnPolicy: wait` 实测过：守卫保持安静，但**回合没有停**（模型自己续跑），已补 `### Waiting for the user` 契约段，待重启复测；边界见 DESIGN §7.4。
 
 ## 要解决的问题（出处）
 
@@ -24,13 +24,13 @@ v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三�
 | --- | --- | --- | --- |
 | 契约段 | `ctx.systemPrompt.section(...)`，order 540，每请求重新渲染 | 告诉模型：插话是新输入、不自动等于替换当前任务；五类关系 + 三类记账（取消/补充/挂起）+ 取消之后不再复述 + 用户回答你问过的问题（「可以」「go ahead」、选择、批准）是决定、要建 todo 并在回复里写清「跑了什么、回了什么」+ 双任务时何时拆 subagent、按什么顺序做 + 证据何时该落盘（重取昂贵的中间结论写成文件，todo 指向它）。没有挂起项时，末尾追加一行 `Open items: …`（todo 面板只在当轮可见，日志不是） | 否（system prompt，不污染转录） |
 | 挂起锚 | 同一 section，末尾追加 `## Suspended work` | 插话时把当时未完成的 todo 条目写进 `suspended-<session>.json`；之后每次组装按「挂起项 ∩ 当前未完成项」渲回 prompt（未完成项 + 打断它的那句话 + 停在哪 + 当时的会话事件号，可用 `session_event_read` 回读证据）；交集为空即删 | 是（每会话一份小 JSON） |
-| 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催 | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
+| 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催（且**不能中止回合**，见 DESIGN §7.4） | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
 
 不做的事（有意）：不判定插话与任务的关系（模型判）、不延迟/不阻止插话、不改 core 的逐字投影、不做 UI 标注、不替模型拆 subagent。
 
 ## 已有证据（真实输出）
 
-- 单测：`node --test tests/` → `tests 36` / `pass 36` / `fail 0`（policy 18 + plugin 17 + store 1）。
+- 单测：`node --test tests/` → `tests 37` / `pass 37` / `fail 0`（policy 19 + plugin 17 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
 - profile 集成校验（headless 脚本）：`resolved: <本仓路径>` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
 - 符号链接：`node_modules/dsh-task-anchor` → 本仓目录（SymbolicLink）。
@@ -42,7 +42,7 @@ v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三�
 
 ## 未验证（下一个会话从这里开始）
 
-1. **`returnPolicy: wait`**：插话时只记录不催（不出现 `[task-anchor]` notice），但 `## Suspended work` 仍在，turn 结束后不自动续跑。
+1. **`returnPolicy: wait`**：补了模式感知契约后重启复测「处理完插话 → 报告 → 停」。若模型仍然续跑，说明软约束到顶，按 DESIGN §7.4 的结论处理（要机械保证只能改 DSH 核心）。
 2. 阈值调参：`maxNudgesPerSession=6`、`maxStaleTurns=3`、`maxNoticeItems=5` 都是拍的，需要真实使用后校准。
 3. 契约体积：现在约 320 tokens/请求且常驻；再有未完成项时多一行 `Open items:`（约 25 tokens）。可考虑「会话内出现过插话后才 sticky 出现」。
 4. 可选 UI 侧标注：让用户看见哪条是插话、哪条是插件 notice；以及让 todo 面板常驻（需改 DSH 前端，超出本仓范围）。
@@ -53,6 +53,7 @@ v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三�
 - **step 1 漏判**：`inbox.claim()` 先取全部 `next-step` 再取 1 条 `next-turn`，所以第 1 步的批次是 `[steering..., opener]`，`detectInterjection` 要求 `step > 1`，此时段进来的插话会被记成普通消息。代价是偶发漏一次兜底，不是误触。
 - **依赖 todo**：模型没写 todo 就没有任务锚，守卫不会触发，锚点也没有内容可渲染。有意如此。
 - **守卫只能救「自己停下」**：插话被理解成新任务、然后一路做下去的情况，靠契约段软约束，机械层拦不住。
+- **`wait` 不能中止回合**：它只是不发 steer，`agent.steer()` 只能追加一步、`agent/turn-stopping` 在收尾时才派发。要机械保证「停」必须改 DSH 核心，见 DESIGN §7.4。
 - **锚点靠「挂起项 ∩ 当前未完成项」判断存亡**：不按轮数过期（安静五轮后回来说「继续」仍能接上）。代价是：模型若把某一项**改写**成新条目，旧项消失 ⇒ 视为取消；若永不重写清单，锚点会一直显示。
 - **`contract: false` 会连锚点一起关掉**：两者共用一个 section（这样稳态 token 成本为 0，也不必维护第二个注册）。
 - **todo 面板是「当轮」表面**：回合结束后面板可能不再显示，但 session log 里的 `todo/write` 还在。`Open items:` 那一行就是给「面板看不见、日志还在」这种情况兜底的；它不按 `maxStaleTurns` 过期——清单本身就是用户可见的事实，除非模型重写清单，否则一直算欠着。

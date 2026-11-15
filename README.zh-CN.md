@@ -81,13 +81,17 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 | 键 | 默认 | 含义 |
 | --- | --- | --- |
 | `enabled` | `true` | 总开关；`false` 时不注册任何东西 |
-| `contract` | `true` | 是否注入系统提示契约（约 150 tokens/请求） |
+| `contract` | `true` | 是否注入系统提示契约（约 320 tokens/请求）；同时是挂起锚的总开关 |
 | `guard` | `true` | 是否启用 turn-stopping 守卫 |
+| `onInterject` | `triage` | 插话时是否把挂起计划落盘（`triage`）；`off` = 只保留守卫 |
+| `returnPolicy` | `auto` | `auto` 把提醒递回回合；`wait` 只记录不催。**`wait` 不能中止正在跑的回合**，见 DESIGN §7.4 |
 | `triggerQueued` | `true` | 「下回合已有排队消息」是否也算触发条件 |
 | `skipWhenAsking` | `true` | 回合末句是提问时不催 |
 | `maxNudgesPerSession` | `6` | 每会话最多催几次；`0` = 只观察 |
-| `maxNoticeItems` | `5` | notice 里最多列几项 |
-| `maxStaleTurns` | `3` | todo 清单跨多少回合后视为过期 |
+| `maxNoticeItems` | `5` | notice / `Open items:` 行里最多列几项 |
+| `maxStaleTurns` | `3` | todo 清单跨多少回合后视为过期（只影响守卫） |
+| `storeDir` | `<DSH_HOME>/task-anchor` | `suspended-<session>.json` 存放目录；回落到 `~/.dsh/task-anchor` |
+| `storeTtlDays` | `7` | 写快照时顺手清理其它会话超过 N 天的快照；`0` 关闭 |
 
 ## 边界（明确不做的事）
 
@@ -106,7 +110,7 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 
 ```powershell
 cd <本仓路径>
-node --test tests/     # 36 条单测：策略判定 + apply() 接线，不需要启动 DSH
+node --test tests/     # 37 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
 端到端手测（重启后）：
@@ -117,7 +121,9 @@ node --test tests/     # 36 条单测：策略判定 + apply() 接线，不需�
 
 日志关键字：`task-anchor: steered a reminder`（info）、`task-anchor: mid-turn user message observed`（debug）。
 
-已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常。守卫的端到端触发仍待手测。
+已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常；插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`；回合收尾出现 `[task-anchor]` notice；改写清单后快照被删。
+
+`returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。若模型仍然不理，插件没有任何办法中止一个正在跑的回合（`agent/turn-stopping` 只在回合已经决定收尾时才派发，`agent.steer()` 只能追加一步）。
 
 ## 现状
 

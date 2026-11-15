@@ -73,7 +73,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 | `contract` | `true` | Inject the prompt contract (~320 tokens/request); also gates the anchor block |
 | `guard` | `true` | Enable the turn-stopping guard |
 | `onInterject` | `triage` | On a mid-turn message, persist the suspended plan (`triage`) or only keep the guard (`off`) |
-| `returnPolicy` | `auto` | Nudge the turn (`auto`) or record only until the user speaks again (`wait`) |
+| `returnPolicy` | `auto` | Nudge the turn (`auto`) or record only until the user speaks again (`wait`). `wait` disables the nudge; it **cannot abort a running turn** — see DESIGN §7.4 |
 | `triggerQueued` | `true` | Also act when a queued message is waiting for the next turn |
 | `skipWhenAsking` | `true` | Skip when the turn ended with a question |
 | `maxNudgesPerSession` | `6` | Nudges per session; `0` = observe only |
@@ -99,14 +99,16 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 
 ```powershell
 cd <path-to-this-repo>
-node --test tests/     # 36 tests: policy decisions + apply() wiring, no harness needed
+node --test tests/     # 37 tests: policy decisions + apply() wiring, no harness needed
 ```
 
 Manual end-to-end after a restart: give the agent a three-step task that starts with a todo list, inject an unrelated question during step 2, then check that a `[task-anchor]` notice appears before the turn closes and that the model accounts for the remaining items.
 
 Log keys: `task-anchor: steered a reminder` (info), `task-anchor: mid-turn user message observed` (debug).
 
-Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system prompt contains the contract section, an unrelated mid-turn question produced a `suspended-<session>.json` plus the `## Suspended work` block, and the turn closed with an `[task-anchor]` notice. Rewriting the todo list without the suspended items deleted the file. `returnPolicy: wait` is the only branch still untested.
+Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system prompt contains the contract section, an unrelated mid-turn question produced a `suspended-<session>.json` plus the `## Suspended work` block, and the turn closed with an `[task-anchor]` notice. Rewriting the todo list without the suspended items deleted the file.
+
+`returnPolicy: wait` was also tried: the guard stayed quiet as intended, **but the turn did not stop** — the model kept working on the suspended plan on its own. That is the honest boundary: `wait` removes the nudge, and the only thing left to ask for a stop is the contract text, so `### Waiting for the user` was added to state it explicitly. If the model ignores it, nothing in the plugin can abort a running turn (`agent/turn-stopping` fires only once the turn is already closing, and `agent.steer()` can only add a step).
 
 ## Status
 
