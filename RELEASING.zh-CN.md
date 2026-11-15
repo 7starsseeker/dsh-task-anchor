@@ -36,18 +36,30 @@ npm pack --dry-run          # 自己读一遍：不能有 tests、临时脚本�
 
 ```bash
 git add -A
-git commit -m "release: v0.2.2"
-git tag v0.2.2
-git push origin main --tags
+git commit -m "release: v0.2.3"
+git tag v0.2.3
+git push origin master
+git push origin v0.2.3
 ```
 
+推 tag 才会触发发布 workflow，所以先推提交 —— tag 指向一个还没进分支的提交，等于把没人能在 GitHub 上审到的代码发出去了。
+
 ## 5. 发布
+
+`.github/workflows/publish.yml` 由 `v*` tag 触发，用 npm **trusted publishing**（OIDC + GitHub Actions）发布：不配 `NPM_TOKEN`，仓库里也不放 secret。流程是先 `node --test` 再 `npm publish`。
+
+第一次打 tag 之前，npm 侧必须有：
+
+- 包 → Settings → Trusted Publisher → GitHub Actions：organization 填 `7starsseeker`，repository 填 `dsh-task-anchor`，workflow filename 填 `publish.yml`，勾上 **Allow npm publish**。
+- 新建的配置要在 **2 天内**完成首次成功发布，否则过期作废，只能删了重建。
+
+CI 不可用时的手动兜底：
 
 ```bash
 npm publish --access public
 ```
 
-CI 自动发布**故意还没接**。接的时候用 npm **trusted publishing**（OIDC），由 workflow 从 tag 发布 —— 不要在仓库里加 `NPM_TOKEN` secret。
+不要「临时」加一个令牌 secret —— trusted publisher 绑的就是这个 workflow 文件，塞回令牌等于把 OIDC 消掉的风险又请回来。
 
 ## 6. 发布之后
 

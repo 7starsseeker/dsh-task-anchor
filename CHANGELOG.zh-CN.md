@@ -2,6 +2,17 @@
 
 只记**两次公开发布之间**的净变化。开发过程中没发布过的中间版本不列。
 
+## 0.2.3 — 2026-11-15
+
+**发布方式**
+
+- `.github/workflows/publish.yml`：推 `v*` tag 即由 GitHub Actions 通过 **trusted publishing（OIDC）** 发布到 npm —— 不需要长期令牌，也不需要在仓库里配 secret。先跑测试；公开仓 + 公开包会自动生成 provenance。
+- `RELEASING.md` / `RELEASING.zh-CN.md` 写明 tag 驱动的流程、新建 trusted publisher 配置的 2 天验证窗口，以及手动兜底。
+
+**文档**
+
+- 两份 README 底部加官方 *powered by dsh* 徽章；商城徽章撤掉，等收录之后再放回来。
+
 ## 0.2.2 — 2026-11-15 — 首次公开发布
 
 **提示契约**（`task-anchor:contract`，system prompt section，约 320 tokens/请求，`contract: false` 可整段关掉）

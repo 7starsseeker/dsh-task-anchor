@@ -36,18 +36,30 @@ npm pack --dry-run          # read it: no tests, no scratch scripts, no local fi
 
 ```bash
 git add -A
-git commit -m "release: v0.2.2"
-git tag v0.2.2
-git push origin main --tags
+git commit -m "release: v0.2.3"
+git tag v0.2.3
+git push origin master
+git push origin v0.2.3
 ```
 
+Pushing the tag is what starts the publish workflow, so push the commit first — a tag pointing at a commit that is not on the branch yet publishes code nobody can review on GitHub.
+
 ## 5. Publish
+
+`.github/workflows/publish.yml` publishes from a `v*` tag with npm **trusted publishing** (OIDC, GitHub Actions): no `NPM_TOKEN`, no repository secret. It runs `node --test` and then `npm publish`.
+
+Settings that must exist on npm before the first tag:
+
+- Package → Settings → Trusted Publisher → GitHub Actions, with organization `7starsseeker`, repository `dsh-task-anchor`, workflow filename `publish.yml`, and **Allow npm publish** checked.
+- A newly created configuration must complete its first successful publish **within 2 days**, otherwise it expires and has to be recreated.
+
+Manual fallback, if CI is unavailable:
 
 ```bash
 npm publish --access public
 ```
 
-CI publishing is intentionally not wired yet. When it is, use npm **trusted publishing** (OIDC) and let the workflow publish from a tag — do not add an `NPM_TOKEN` secret to the repository.
+Do not add a token secret "temporarily" — the trusted publisher is bound to this workflow file, and a token reintroduces the risk the OIDC path removes.
 
 ## 6. After publish
 

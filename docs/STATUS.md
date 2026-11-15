@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.2.2 已实现、**37 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。`returnPolicy: wait` 实测过：守卫保持安静，但**回合没有停**（模型自己续跑），已补 `### Waiting for the user` 契约段，待重启复测；边界见 DESIGN §7.4。
+v0.2.3 已实现、**37 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。`returnPolicy: wait` 实测过：守卫保持安静，但**回合没有停**（模型自己续跑），已补 `### Waiting for the user` 契约段，待重启复测；边界见 DESIGN §7.4。
 
 ## 要解决的问题（出处）
 

@@ -2,6 +2,17 @@
 
 Net changes between **public releases**. Internal iterations that never shipped are not listed.
 
+## 0.2.3 — 2026-11-15
+
+**Publishing**
+
+- `.github/workflows/publish.yml`: pushing a `v*` tag now publishes to npm from GitHub Actions via **trusted publishing (OIDC)** — no long-lived token and no repository secret. Tests run first; provenance is generated automatically for a public repository and a public package.
+- `RELEASING.md` / `RELEASING.zh-CN.md` describe the tag-driven flow, the 2-day validation window of a new trusted-publisher configuration, and the manual fallback.
+
+**Docs**
+
+- READMEs carry the official *powered by dsh* badge at the bottom; the plugin-store badge is removed until the listing exists.
+
 ## 0.2.2 — 2026-11-15 — first public release
 
 **Prompt contract** (`task-anchor:contract`, system-prompt section, ~320 tokens per request, `contract: false` removes it)
