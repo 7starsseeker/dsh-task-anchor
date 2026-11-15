@@ -29,6 +29,8 @@ A mid-turn message reaches DSH through one of two paths, and both can drop the r
 
 Common root: the todo projection is cleared at `turn/start` (`packages/todo/tool-todo/src/index.ts`), so the next turn is never reminded that work is still open.
 
+**Scope, stated plainly.** This softens the drift; it does not remove it. The interrupting message still takes the step it lands on, and the model can still pivot before the next boundary — the contract is advisory and the guard fires only once the turn is already closing. What changes is that the plan survives the pivot: it is written down, re-rendered, and the turn cannot close silently with it unfinished. Closing the gap itself — deciding that a mid-turn message should wait, and giving it a different identity in the transcript — is a harness decision, not a plugin one.
+
 ## What it does
 
 1. **Contract** (`task-anchor:contract`, a system-prompt section, ~320 tokens per request): a mid-turn user message is new input, not automatically a replacement for the task in progress. Classify it first — added constraint / correction of the current step / question / separate new task / explicit change or cancellation — then act. The same section says how to record a suspended plan, when a finding is expensive enough to persist, that an answer to your own question is a decision rather than a fact, and that work the user cancelled is not re-narrated afterwards. Never silently abandon unfinished work.
@@ -86,7 +88,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 - **No relation classification.** The plugin calls no model and does not decide which kind of interjection arrived; the contract plus the model own that judgement. The plugin only enforces the mechanical part: was open work left behind?
 - **Step-1 interjections are not detected.** `claim()` takes `next-step` and `next-turn` together at step 1, so "steering" and "opener" cannot be told apart by step alone. Documented known gap.
 - **Turns without a todo list are never nudged.** No declared plan, no open item to account for.
-- **It never delays an interjection.** Holding messages until the turn ends would silence a legitimate "stop, wrong direction".
+- **It never delays an interjection.** A `agent/pre-step` listener could rewrite the step's `messages` — the waterfall's `enter` decision is exactly what gets logged and sent to the model — and park the message for later; returning `reject` instead ends the turn right there (`turn/end` reason `blocked`). This plugin deliberately does neither: holding a message would silence a legitimate "stop, wrong direction", and rejecting the step would throw away the half-done work too. Stopping *because of* an interjection stays the user's call.
 - **It does not touch `surface.ts`.** The model-side identity of a steering message stays flat; adding a render-layer marker requires a meta renderer and a new Agent Note.
 
 ## Relation to neighbouring plugins
