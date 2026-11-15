@@ -7,6 +7,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   assistantText,
+  buildAnchorText,
   buildContractText,
   buildNoticeText,
   detectInterjection,
@@ -162,4 +163,26 @@ test('normalizeConfig fills defaults and clamps bad values', () => {
   assert.equal(tuned.maxNoticeItems, 1)
   assert.equal(tuned.maxStaleTurns, 0)
   assert.equal(tuned.contract, true)
+})
+
+test('buildAnchorText points at the transcript when a sequence is known', () => {
+  const withSeq = buildAnchorText({
+    items: ['写报告'],
+    interjection: '晚上吃什么',
+    stoppedAt: '正在查榜单',
+    seq: 1531,
+  })
+  assert.match(withSeq, /## Suspended work/)
+  assert.match(withSeq, /session event #1531/)
+  assert.match(withSeq, /session_event_read/)
+
+  // No known position must not render a dangling pointer.
+  const withoutSeq = buildAnchorText({ items: ['写报告'] })
+  assert.doesNotMatch(withoutSeq, /session event #/)
+})
+
+test('contract says where durable evidence belongs', () => {
+  const body = buildContractText()
+  assert.match(body, /### Keeping what you already found/)
+  assert.match(body, /expensive to obtain again/)
 })

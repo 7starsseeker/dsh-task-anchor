@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-anchor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Keep the running task anchored when a mid-turn user message arrives: a prompt contract plus a turn-stopping guard that makes unfinished work explicit instead of silently dropped.",
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "scripts": {
     "test": "node --test tests/",
-    "check": "node --check lib/index.js && node --check lib/policy.js"
+    "check": "node --check lib/index.js && node --check lib/policy.js && node --check lib/store.js"
   },
   "engines": {
     "node": ">=22.15.0"

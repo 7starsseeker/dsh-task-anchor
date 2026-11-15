@@ -1,6 +1,6 @@
 # 设计说明：为什么是「契约 + 守卫」而不是改 core
 
-## 1. 数据流（DSH 0.1.2-alpha.1 的真实顺序）
+## 1. 数据流（DSH 0.1.2-alpha.1 的真实顺序；0.2.2-rc.3 行号见下）
 
 ```
 用户忙时输入
@@ -74,6 +74,44 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 ## 6. 验证策略
 
-- 21 条单测：12 条策略（分类、截断、过期、提问判定、默认值）+ 9 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判）。全部不需要启动 harness。
+- 32 条单测：16 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、`Open items` 行）+ 16 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、`Open items` 三种形态）。全部不需要启动 harness。
 - 端到端手测脚本见 README「验证」；日志关键字 `task-anchor: steered a reminder`。
 - 不写「假装通过」的集成测试：真实 turn-stopping 需要模型产出，成本高且不稳定；改为日志可观察 + 单测覆盖判定。
+
+## 7. 挂起计划：为什么只落盘一次
+
+插话把任务打断后，**「这活是挂起还是取消」不是插件能算的量**——只有模型知道用户想继续还是想放弃。所以插件不判语义，只认 todo 的痕迹：
+
+| 模型的动作 | 插件看到的事实 | 结果 |
+| --- | --- | --- |
+| 把清单里那一项删掉 | 挂起项不在最近 `todo/write` 里 | 视为取消，删快照 |
+| 改写那一项（加约束） | 内容变了 ⇒ 原项不再出现 | 视为取消（改写即换新条目），快照删；新条目属于当前计划 |
+| 保留原项 + 新任务入清单 | 挂起项仍在未完成集合里 | 视为挂起，快照保留，只渲染挂起项 |
+
+快照里存的是**插话那一刻未完成的条目本身**（`items`），不是「清单后来长什么样」。渲染时取 `items ∩ 当前未完成项`：后来新增的任务不会被误标成「被挂起」，被删掉的项也会立刻消失。代价是「改写一项」等价于取消旧项——这是有意的取舍：判断「改写」和「换成新任务」需要语义理解，而插件只认痕迹。
+
+触发点只有一个：`agent/pre-step` 里 `detectInterjection` 为真那一刻。**不设周期检查点**——周期写盘要每回合付费，而读它的时机（恢复上下文、重启后继续）却很稀少。
+
+落到哪：`storeDir`（默认 `DSH_HOME/task-anchor`，再退 `~/.dsh/task-anchor`）下 `suspended-<session>.json`，内容只有 `{version, session, turn, seq, at, interjection, items, stoppedAt}`。计划全文不落盘——它在 session log 的 `todo/write` 里，抄一份只会让两份状态漂移；`items` 例外，因为它是「哪些项被挂起」这件事的唯一记录。
+
+**不按轮数过期**：用户可能安静五轮之后才说「继续」，而这正是它存在的理由（billion-context 之类的压缩会把计划挤掉）。消失条件只有两个：渲染时交集为空（项被删/改写）、或下一轮 `turn-stopping` 时交集为空（顺手删文件）。若模型永远不重写清单，它就一直显示——那是「活还没做完」的诚实表达。
+
+怎么读回来：system prompt 的同一 section 在每次组装时把快照渲染成 `## Suspended work`（未完成项 + 打断它的那句话 + 停在哪），**和契约共用一个 section**，所以稳态下多出的 token 是 0。措辞是 advisory 的（「用户说继续就从这里接；用户说取消就重写清单」），不是「必须继续」——否则就是另一种劫持。
+
+**证据不进 prompt，但要可发现**：快照里的 `seq`（挂起那一刻最后一条事件的序号）也渲染出来，附一句「用 `session_event_read` 回读该事件附近的转录」。把已查到的东西塞进 prompt 是**每轮**付费，而压缩动的是上下文、session log 本身是完整的；所以正确做法是给一个入口，不是搬家。契约里因此多一条纪律：重取昂贵（不止一次调用、花了钱或配额、有外部副作用）的中间结论写成文件，todo 指向它；重取便宜的（一次搜索就能拿回来）不落。
+
+### 7.1 没有挂起项时：一行 `Open items:`
+
+只有「被插话打断」的那份计划才有快照。普通的多步任务没有插话，就只能靠 todo 面板——而面板是当轮的工具卡片，回合结束就没了，日志也不是模型每次都能读的东西。所以 section 在**没有快照但有未完成项**时，末尾追加一行 `Open items: <未完成项>; ...and N more`（`maxNoticeItems` 截断，单项 120 字）。有快照时不再追加，避免同一批条目在一段 prompt 里出现两遍。约 20–40 token/请求。
+
+为什么必须从日志推导而不是从本步 payload：prompt 在 `agent/pre-step` **之前**组装（0.2.2-rc.3 的 `agent.ts:300` vs `:302-303`），本步的插话在组装时还不存在。
+
+## 8. 一次真实的静默失败（0.2.2-rc.3）
+
+守卫上线后在真实插话里没有 steer，日志里也没有 `steered a reminder`。根因不是事件名，而是插件读了 `agent.session.events`：
+
+- `dsh-session/src/index.ts:555` 的 `Session` 只有 `private log`，没有 `events`；公开读法是 `snapshotEvents()`（`:759-768`）。
+- 于是 `openTodos(undefined)` 在 `events.length` 抛错，被 turn-stopping 的 `catch` 吞成一行 debug 日志 ⇒ 守卫静默不催。
+- 次生问题：真实 `assistant/message` 的 data 形状是 `{turn, step, message, usage, stream}`，消息体在 `data.message`，旧实现读 `event.data` ⇒ `content` 取不到 ⇒ `skipWhenAsking` 永远失效。
+
+教训：**在 turn-stopping 里 catch 一切，会把「代码错了」和「条件不满足」变成同一种表现**。现在两处都留了可 grep 的 debug 文案（`guard skipped` / `anchor skipped` / `observation skipped`）。

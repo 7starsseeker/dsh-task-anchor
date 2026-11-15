@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 — 2026-11-15
+
+修复 + 挂起计划。
+
+- **修**：守卫在真实插话里从未生效。`agent.session.events` 在 DSH 0.2.2-rc.3 不存在（`Session` 只暴露 `snapshotEvents()`），`openTodos(undefined)` 抛错被 `turn-stopping` 的 catch 吞成一行 debug 日志。改用 `snapshotEvents()`。
+- **修**：`lastAssistantText` 读 `event.data`，而真实 `assistant/message` 把消息放在 `data.message`，导致 `skipWhenAsking` 永远失效。
+- **新**：插话时把当时未完成的 todo 条目落盘一次（`suspended-<session>.json`，`items` 字段），之后每次组装 prompt 按「挂起项 ∩ 当前未完成项」渲染成 `## Suspended work`（未完成项 + 插话原文 + 停在哪一句）。交集为空即删；不按轮数过期，所以安静多轮后回来说「继续」仍能接上。
+- **新**：配置项 `onInterject: triage|off`、`returnPolicy: wait|auto`、`storeDir`。
+- **新**：契约段补「三类记账（取消 / 补充 / 挂起）」「双任务时的交付与顺序」「何时拆 subagent 的三条判据」。
+- **新**：没有挂起项时，prompt 末尾渲染一行 `Open items: …`。todo 面板只在当轮可见，日志不是；这一行让「还欠着什么」在每个请求里都看得见。
+- **新**：锚点末尾附带挂起时的会话事件号，并提示用 `session_event_read` 回读——证据本来就躺在日志里，模型只是不知道去哪找。
+- **新**：契约补「证据落盘」一条：重取昂贵（不止一次调用、花了钱或配额、有外部副作用）的中间结论写成文件，todo 指向它；重取便宜的不落。
+- 32 条单测（16 条策略 + 16 条 `apply()` 接线），零运行时依赖。
+
 ## 0.1.0 — 2026-11-15
 
 首个版本。

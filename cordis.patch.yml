@@ -10,10 +10,19 @@
       config:
         # 总开关。false 时插件挂载即返回，不注册任何 section / 监听器。
         enabled: true
-        # 系统提示里的「中途消息处理契约」。约 150 tokens/请求，关掉可省。
+        # 系统提示里的「中途消息处理契约」。约 320 tokens/请求，关掉可省。
+        # 关掉也会一并关掉「Suspended work」段（两者共用一个 section）。
         contract: true
         # turn-stopping 守卫（未完成 todo 的机械兜底）。
         guard: true
+        # 插话时做什么：triage = 把被打断的计划记下来，落盘一份
+        # suspended-<session>.json，并在之后的系统提示里渲染「Suspended work」段；
+        # off = 不记，只保留下面的守卫。
+        onInterject: triage
+        # 守卫的推进方式：auto = 本轮结束前催一句（默认）；wait = 只记不催，等用户下一句。
+        returnPolicy: auto
+        # 快照目录；省略时用 DSH_HOME/task-anchor，再退到 ~/.dsh/task-anchor。
+        # storeDir: ''
         # true 时「本轮结束、下轮已有排队消息」也算触发条件（与插话共用同一守卫）。
         triggerQueued: true
         # 本轮最后一句是提问（以 ? / ？ 结尾）时不催，避免打断正常的「停下来问用户」。
@@ -23,4 +32,5 @@
         # 提示里最多列几条未完成项，其余折叠成「...and N more」。
         maxNoticeItems: 5
         # todo 清单跨 turn 的有效期：写出后经过多少个 turn 就视为过期、不再当作任务锚。
+        # 只影响守卫；「Suspended work」段不按轮数过期（靠被挂起项是否还在清单里判断）。
         maxStaleTurns: 3
