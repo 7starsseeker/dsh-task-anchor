@@ -131,3 +131,5 @@ node --test     # 37 条单测：策略判定 + apply() 接线，不需要启动
 ## 卸载
 
 从 profile 的 `dependencies` 与 `dsh.profile.bundles` 里删掉两行，`pnpm install`，重启。
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

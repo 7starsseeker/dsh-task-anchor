@@ -112,3 +112,5 @@ Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system promp
 ## Status
 
 Progress, evidence, open items, next steps: [docs/STATUS.md](docs/STATUS.md). Design rationale: [docs/DESIGN.md](docs/DESIGN.md).
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
