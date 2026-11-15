@@ -1,0 +1,60 @@
+# Release flow
+
+> 中文版：[RELEASING.zh-CN.md](RELEASING.zh-CN.md)
+
+For maintainers. Three rules first:
+
+1. **Zero runtime dependencies is non-negotiable.** `dependencies` must stay out of `package.json`; anything there blocks the release.
+2. **Run the self-tests and paste the raw output** into the release notes — not "tests pass".
+3. **Tag first, then publish.** The reverse order leaves npm with a version GitHub has no tag for.
+
+## 1. Version
+
+| Change | Version |
+|---|---|
+| Prompt wording, docs, internal fix | patch (0.2.2 → 0.2.3) |
+| New config key, new contract section, new behaviour | minor (0.2.2 → 0.3.0) |
+| Breaking config keys or notice format | major (during 0.x: minor + BREAKING in CHANGELOG) |
+
+## 2. Pre-release checks
+
+```bash
+node --check lib/index.js && node --check lib/policy.js && node --check lib/store.js
+node --test tests/          # expect: 36 tests, 0 failures
+npm pack --dry-run          # read it: no tests, no scratch scripts, no local files
+```
+
+`npm pack --dry-run` must list exactly `lib/`, `cordis.patch.yml`, the four docs, `LICENSE`, `NOTICE`, and `package.json`.
+
+## 3. Docs
+
+- `CHANGELOG.md` + `CHANGELOG.zh-CN.md`: one new section in both, **net changes only** — no iteration history that never shipped. Never update only one.
+- `README.md` + `README.zh-CN.md`: keep the config table and the mechanism list in sync. English is the default file.
+- Bump the test count wherever it appears: `README.md`, `README.zh-CN.md`, `AGENTS.md`, `docs/DESIGN.md`, `docs/STATUS.md`.
+
+## 4. The deliberate gap
+
+`package.json` ships with `"private": true`. That is the one edit this release needs from you: flip it to `false` in the same commit that bumps the version. Without it `npm publish` refuses; with it a stray `npm publish` from a dev checkout could go out, so the flip belongs **after** the tests are green and the tag is planned.
+
+## 5. Commit and tag
+
+```bash
+git add -A
+git commit -m "release: v0.2.2"
+git tag v0.2.2
+git push origin main --tags
+```
+
+## 6. Publish
+
+```bash
+npm publish --access public
+```
+
+CI publishing is intentionally not wired yet. When it is, use npm **trusted publishing** (OIDC) and let the workflow publish from a tag — do not add an `NPM_TOKEN` secret to the repository. That switch is the "one more update" the metadata is prepared for: `publishConfig` is already public.
+
+## 7. After publish
+
+- Create the GitHub release from the tag; paste the CHANGELOG section and the raw test output.
+- Verify the npm page renders the README, LICENSE and badges; check `npm view dsh-task-anchor dist-tags`.
+- Install it into a scratch DSH profile (`<DSH_HOME>/profiles/…`) and confirm the contract section and one guard nudge work — a package that installs but does not mount is the failure mode this repository exists to avoid.

@@ -1,6 +1,17 @@
-# task-anchor
+# dsh-task-anchor
 
-> When a task is interrupted mid-flight, don't let the original task disappear.
+> 中文版：[README.zh-CN.md](README.zh-CN.md)
+
+When a task is interrupted mid-flight, don't let the original task disappear.
+
+[![selftest](https://github.com/7starsseeker/dsh-task-anchor/actions/workflows/selftest.yml/badge.svg)](https://github.com/7starsseeker/dsh-task-anchor/actions/workflows/selftest.yml)
+[![npm](https://img.shields.io/npm/v/dsh-task-anchor.svg)](https://www.npmjs.com/package/dsh-task-anchor)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-task-anchor.svg)](https://www.npmjs.com/package/dsh-task-anchor)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D22.15-brightgreen.svg)](package.json)
+[![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
+[![DSH plugin](https://img.shields.io/badge/DSH-plugin-1F3A8A.svg)](https://github.com/7starsseeker)
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/7starsseeker/dsh-task-anchor/)
 
 A zero-dependency DeepSeek Harness host plugin. **When a turn receives a mid-turn user message and ends with unfinished todos, it steers one notice back into that turn** so the model either finishes the work or states plainly what remains.
 

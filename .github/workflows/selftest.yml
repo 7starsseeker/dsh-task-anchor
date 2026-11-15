@@ -1,0 +1,27 @@
+name: selftest
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.15', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: syntax
+        run: |
+          node --check lib/index.js
+          node --check lib/policy.js
+          node --check lib/store.js
+      - name: tests
+        run: node --test tests/

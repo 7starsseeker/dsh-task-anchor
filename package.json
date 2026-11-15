@@ -2,7 +2,7 @@
   "name": "dsh-task-anchor",
   "version": "0.2.2",
   "private": true,
-  "description": "Keep the running task anchored when a mid-turn user message arrives: a prompt contract plus a turn-stopping guard that makes unfinished work explicit instead of silently dropped.",
+  "description": "Keep the running task anchored when a mid-turn user message arrives: a prompt contract, a suspended-plan anchor that survives compaction, and a turn-stopping guard that makes unfinished work explicit instead of silently dropped.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -27,7 +27,11 @@
     "README.md",
     "README.zh-CN.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "CHANGELOG.zh-CN.md",
+    "RELEASING.md",
+    "RELEASING.zh-CN.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "keywords": [
     "deepseek-harness",
@@ -38,7 +42,21 @@
     "interjection",
     "task-anchor",
     "goal-drift",
+    "context-compaction",
     "zero-dependency"
   ],
-  "license": "MIT"
+  "license": "Apache-2.0",
+  "author": "7starsseeker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/7starsseeker/dsh-task-anchor.git"
+  },
+  "homepage": "https://github.com/7starsseeker/dsh-task-anchor#readme",
+  "bugs": {
+    "url": "https://github.com/7starsseeker/dsh-task-anchor/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

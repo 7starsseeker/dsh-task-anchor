@@ -1,6 +1,17 @@
-# task-anchor
+# dsh-task-anchor
 
-> 任务执行中被打断时，别让原任务悄悄消失。
+> English: [README.md](README.md)
+
+任务执行中被打断时，别让原任务悄悄消失。
+
+[![selftest](https://github.com/7starsseeker/dsh-task-anchor/actions/workflows/selftest.yml/badge.svg)](https://github.com/7starsseeker/dsh-task-anchor/actions/workflows/selftest.yml)
+[![npm](https://img.shields.io/npm/v/dsh-task-anchor.svg)](https://www.npmjs.com/package/dsh-task-anchor)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-task-anchor.svg)](https://www.npmjs.com/package/dsh-task-anchor)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D22.15-brightgreen.svg)](package.json)
+[![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
+[![DSH plugin](https://img.shields.io/badge/DSH-plugin-1F3A8A.svg)](https://github.com/7starsseeker)
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/7starsseeker/dsh-task-anchor/)
 
 一个零依赖的 DeepSeek Harness 宿主插件：**当回合中途收到用户插话、并且回合结束时还有未完成的 todo，它会把一条提示 steer 回当前回合**，让模型要么把活干完，要么明确说清楚还剩下什么。
 
