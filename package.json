@@ -1,6 +1,6 @@
 {
   "name": "dsh-task-anchor",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Keep the running task anchored when a mid-turn user message arrives: a prompt contract, a suspended-plan anchor that survives compaction, and a turn-stopping guard that makes unfinished work explicit instead of silently dropped. It softens the drift rather than removing it — the interrupting message still owns the step it lands on.",
   "type": "module",
   "main": "lib/index.js",

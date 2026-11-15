@@ -10,6 +10,8 @@ import {
   buildAnchorText,
   buildContractText,
   buildNoticeText,
+  classifyInterjection,
+  currentTurnOf,
   detectInterjection,
   endsWithQuestion,
   isUserMessage,
@@ -184,6 +186,33 @@ test('buildAnchorText points at the transcript when a sequence is known', () => 
   assert.doesNotMatch(withoutSeq, /session event #/)
 })
 
+test('a same-turn interjection renders the decision, a later one renders the reminder', () => {
+  const sameTurn = buildAnchorText({ items: ['写报告'], interjection: '炸鸡为什么比炸鸭多', sameTurn: true })
+  assert.match(sameTurn, /## Interjection during this turn/)
+  assert.match(sameTurn, /stop this turn now/)
+  assert.match(sameTurn, /a cancellation — rewrite the todo list/)
+  assert.match(sameTurn, /Do not keep grinding on the parked items/)
+  assert.doesNotMatch(sameTurn, /## Suspended work/)
+
+  // A snapshot from an earlier turn is a reminder, not a decision: that turn is over.
+  const later = buildAnchorText({ items: ['写报告'], sameTurn: false })
+  assert.match(later, /## Suspended work/)
+  assert.match(later, /If the user asks to continue, resume from here/)
+  assert.doesNotMatch(later, /## Interjection during this turn/)
+})
+
+test('currentTurnOf reads the turn the log is inside', () => {
+  const events = [
+    { type: 'turn/start', seq: 4, data: { turn: 1 } },
+    { type: 'step/start', seq: 5, data: { turn: 1, step: 1 } },
+    { type: 'turn/start', seq: 82, data: { turn: 2 } },
+    { type: 'assistant/message', seq: 155, data: { turn: 2, step: 3 } },
+  ]
+  assert.equal(currentTurnOf(events), 2)
+  assert.equal(currentTurnOf([]), 0)
+  assert.equal(currentTurnOf(undefined), 0)
+})
+
 test('contract says where durable evidence belongs', () => {
   const body = buildContractText()
   assert.match(body, /### Keeping what you already found/)
@@ -217,4 +246,24 @@ test('wait mode asks the model to stop; auto mode asks it to resume', () => {
 
   // No options = the default profile (auto).
   assert.match(buildContractText(), /### Resuming suspended work/)
+})
+
+test('classifyInterjection separates cancellation, amendment, and separate work', () => {
+  const cfg = normalizeConfig({ forceStop: 'triage' })
+  assert.equal(classifyInterjection('算了，这个先不做了', cfg), 'cancel')
+  assert.equal(classifyInterjection('把日志改成中文注释', cfg), 'amend')
+  assert.equal(classifyInterjection('炸鸡为什么比炸鸭炸鹅多？', cfg), 'other')
+  assert.equal(classifyInterjection('', cfg), 'other')
+})
+
+test('forceStop normalizes to off/always/triage and drops broken patterns', () => {
+  assert.equal(normalizeConfig({}).forceStop, 'off')
+  assert.equal(normalizeConfig({ forceStop: true }).forceStop, 'always')
+  assert.equal(normalizeConfig({ forceStop: 'always' }).forceStop, 'always')
+  assert.equal(normalizeConfig({ forceStop: 'triage' }).forceStop, 'triage')
+  assert.equal(normalizeConfig({ forceStop: 'yes please' }).forceStop, 'off')
+
+  const custom = normalizeConfig({ cancelPatterns: ['打住', '('] })
+  assert.equal(custom.cancelPatterns.length, 1, 'an uncompilable pattern is dropped')
+  assert.equal(classifyInterjection('打住吧', custom), 'cancel')
 })

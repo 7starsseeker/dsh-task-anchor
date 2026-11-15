@@ -37,7 +37,7 @@ DSH 里插话有两条投递路径，两条都可能把原任务丢掉：
    每次请求注入约 320 tokens 的规则：中途 user 消息是「新输入」，不是「任务的替代品」；先判断它属于补充约束 / 修正当前步 / 追问 / 新任务 / 改目标或中止，再决定动作。同一段还写着：被挂起的计划怎么记账、什么中间结论值得落盘、用户回答你问过的问题是**决定**而不是情报、被取消的任务之后不再复述。永不静默丢弃未完成的工作。
 
 2. **挂起计划（`agent/pre-step` → 一个 JSON 文件）**
-   插话到达且清单里还有未完成项时，把当时的未完成项写一次到 `suspended-<session>.json`。之后每次组装 prompt 都按「挂起项 ∩ 当前未完成项」渲染回 `## Suspended work`：还剩哪些、打断它的是哪句话、停在哪、以及当时的会话事件号（可用 `session_event_read` 回读转录）。这些项从清单里消失（做完或取消）即删文件。没有快照但有待办时，段末只追加一行 `Open items: …`——todo 面板只是当轮表面，日志不是。
+   插话到达且清单里还有未完成项时，把当时的未完成项写一次到 `suspended-<session>.json`。之后每次组装 prompt 都按「挂起项 ∩ 当前未完成项」渲染回 `## Suspended work`：还剩哪些、打断它的是哪句话、停在哪、以及当时的会话事件号（可用 `session_event_read` 回读转录）。这些项从清单里消失（做完或取消）即删文件。**插话落在当前正在跑的回合时**，同一份快照改渲染成 `## Interjection during this turn`：列出被挂起的项、插话原文、三个读法（取消 / 补充 / 另起一件事），并要求模型在**这一回合内**自己判断——停不停是模型的判断，不是插件替它打断。没有快照但有待办时，段末只追加一行 `Open items: …`——todo 面板只是当轮表面，日志不是。
 
 3. **守卫（`agent/turn-stopping`）**
    满足全部条件时，用 `agent.steer()` 把一条 notice 塞回当前回合：
@@ -86,7 +86,9 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 | `guard` | `true` | 是否启用 turn-stopping 守卫 |
 | `onInterject` | `triage` | 插话时是否把挂起计划落盘（`triage`）；`off` = 只保留守卫 |
 | `returnPolicy` | `auto` | `auto` 把提醒递回回合；`wait` 只记录不催。单靠 `wait` **不能中止正在跑的回合**，见 DESIGN §7.4 |
-| `forceStop` | `false` | 插话落到 step 边界时直接停在那里，把这条消息交给下一回合；默认关，建议配 `returnPolicy: wait` 用 |
+| `forceStop` | `off` | **实验性。** `off` / `always` / `triage`。插话落到 step 边界时直接停在那里，把这条消息交给下一回合；`triage` 只在文本不像取消、也不像补充修改时才停。默认关；停回合会让宿主播一次「任务结束」提示音，所以不作推荐路径 |
+| `cancelPatterns` | 内置表 | 判「这条插话是取消」的正则列表（不区分大小写）；给了数组就整体替换默认值 |
+| `amendPatterns` | 内置表 | 判「这条插话是补充修改」的正则列表（不区分大小写）；给了数组就整体替换默认值 |
 | `triggerQueued` | `true` | 「下回合已有排队消息」是否也算触发条件 |
 | `skipWhenAsking` | `true` | 回合末句是提问时不催 |
 | `maxNudgesPerSession` | `6` | 每会话最多催几次；`0` = 只观察 |
@@ -112,7 +114,7 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 
 ```powershell
 cd <本仓路径>
-node --test     # 40 条单测：策略判定 + apply() 接线，不需要启动 DSH
+node --test     # 48 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
 端到端手测（重启后）：
@@ -125,7 +127,21 @@ node --test     # 40 条单测：策略判定 + apply() 接线，不需要启动
 
 已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常；插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`；回合收尾出现 `[task-anchor]` notice；改写清单后快照被删。
 
-`returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。若模型仍然不理，`agent/turn-stopping` 没有任何办法中止一个正在跑的回合（`agent.steer()` 只能追加一步）。`forceStop: true` 把这个缺口用机械方式补上：`agent/pre-step` 里把这一批消息放回 `next-turn` 并返回 `reject`，这个 step 不会打开，`turn/end` 记成 `blocked`，下一回合从这条插话开始。尚未 live 验证。
+`returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。**所以主路径不是强行停，而是上面那条同回合提示**：模型在插话落地的那一步就看到「挂起的是什么、刚来的是什么」，由它自己决定。`forceStop: always` 是实验性的机械停：`agent/pre-step` 里把这一批消息放回 `next-turn` 并返回 `reject`，这个 step 不会打开，`turn/end` 记成 `blocked`，下一回合从这条插话开始。2026-11-15 已 live 验证（`turn/end reason=blocked` → 消息在下一回合开头重新送达），同一次实测也暴露了代价：宿主播了「任务结束」提示音，用户体感就是「任务被打断」。`forceStop: triage` 把停的范围收窄到「不像取消、也不像补充修改」的插话；关键词启发式，尚未 live 验证。
+
+### 实验性：硬停（`forceStop`）
+
+**默认关闭**（`forceStop: off`），也不是推荐路径 —— 推荐的是上面那条同回合提示。它只服务于「想要机械保证、不接受建议」的场合。
+
+**机制**：`agent/pre-step` 里如果这一批里含用户消息，`parkAndStop()` 先把它们逐条 `append` 成 `next-turn`（先落盘，崩了也不丢），再返回 `{ kind: 'reject' }`；turn 循环把它变成 `turnEnds = { kind: 'blocked' }` 并直接 return、不调 `step()`（`dsh-agent-loop/src/agent.ts:354-357`），于是宿主看到一次正常的回合结束，消息原样成为下一回合的开场。
+
+**限制**：
+- 停的是**回合**，不是计划：todo 清单还在、到那一步为止的转录还在、之前的工具结果也还能读。
+- 被 reject 的回合**没有 assistant 收尾语**，转录上是直接断掉。
+- 宿主播「任务结束」提示音，和「任务真的做完了」无法区分 —— 这就是它默认关着的原因。
+- `triage` 只把「不像取消、也不像补充修改」的文本停掉；那是关键词启发式，不是语义判断：「裙子什么颜色」不含取消/补充词 ⇒ 仍归「另一件事」⇒ 照样会停。
+- 被暂存的消息要等 loop 空闲才重投；一直不空闲就留在 `next-turn` 里，跟下一条用户消息一起走。
+- 配置：`forceStop: off | always | triage`、`returnPolicy: auto | wait`；默认 `off` + `auto`。
 
 ## 现状
 

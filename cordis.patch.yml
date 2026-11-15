@@ -21,10 +21,26 @@
         onInterject: triage
         # 守卫的推进方式：auto = 本轮结束前催一句（默认）；wait = 只记不催，等用户下一句。
         returnPolicy: auto
-        # 插话落到某个 step 边界时，直接把回合停在那里（reject 该 step），
-        # 把插话文本交给下一回合开头交付。默认 false：结束一个正在跑的回合
-        # 比把它记下来更强硬，不该默认替用户决定。配 returnPolicy: wait 用。
-        forceStop: false
+        # 插话落到某个 step 边界时要不要把回合停在那里（reject 该 step），
+        # 把插话文本交给下一回合开头交付：
+        #   off    = 不停（默认）；
+        #   always = 任何插话都停；
+        #   triage = 只停「像另一件事」的插话；文本像取消或补充修改时留在本轮里，
+        #            由模型按契约改写 todo（取消=删条目，补充=改条目）。
+        # triage 是关键词启发式（见 cancelPatterns / amendPatterns），不是语义判断。
+        # 结束一个正在跑的回合比把它记下来更强硬，所以默认 off；停回合会让宿主
+        # 播一次「任务结束」提示音。这是实验性开关，主路径是 §7.6 的同回合提示。
+        forceStop: off
+        # triage 用的标记（正则，不区分大小写）。给了就整体替换默认表；数组里的字符串
+        # 必须能被 RegExp 编译，编译失败的那条会被丢掉（不会拖垮插件）。
+        # cancelPatterns:
+        #   - 取消
+        #   - 算了
+        #   - never ?mind
+        # amendPatterns:
+        #   - 改成
+        #   - 换成
+        #   - instead
         # 快照目录；省略时用 DSH_HOME/task-anchor，再退到 ~/.dsh/task-anchor。
         # storeDir: ''
         # 孤儿快照的清理阈值：写快照时顺手删掉「不属于当前会话」且超过这么多天的

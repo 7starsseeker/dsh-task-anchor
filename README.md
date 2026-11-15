@@ -35,7 +35,7 @@ Common root: the todo projection is cleared at `turn/start` (`packages/todo/tool
 
 1. **Contract** (`task-anchor:contract`, a system-prompt section, ~320 tokens per request): a mid-turn user message is new input, not automatically a replacement for the task in progress. Classify it first — added constraint / correction of the current step / question / separate new task / explicit change or cancellation — then act. The same section says how to record a suspended plan, when a finding is expensive enough to persist, that an answer to your own question is a decision rather than a fact, and that work the user cancelled is not re-narrated afterwards. Never silently abandon unfinished work.
 
-2. **Suspended plan** (`agent/pre-step` → one JSON file): when a mid-turn message arrives while todos are open, the open items are written once to `suspended-<session>.json`. Every later assembly renders them back as a `## Suspended work` block — only the items still open, the message that interrupted, where the turn stopped, and the session event number that holds the transcript for `session_event_read`. When those items leave the list (done or cancelled) the file is deleted. With no snapshot but open work, the section ends with a single `Open items: …` line, because the todo panel is a per-turn surface and the log is not.
+2. **Suspended plan** (`agent/pre-step` → one JSON file): when a mid-turn message arrives while todos are open, the open items are written once to `suspended-<session>.json`. Every later assembly renders them back as a `## Suspended work` block — only the items still open, the message that interrupted, where the turn stopped, and the session event number that holds the transcript for `session_event_read`. When those items leave the list (done or cancelled) the file is deleted. In the turn the interjection actually landed in, the same snapshot renders as `## Interjection during this turn` instead: it names the three readings (cancellation / amendment / separate work) and asks the model to decide *in that turn* — stopping is the model's call, not a plugin-side interrupt. With no snapshot but open work, the section ends with a single `Open items: …` line, because the todo panel is a per-turn surface and the log is not.
 
 3. **Guard** (`agent/turn-stopping`): when all of the following hold, `agent.steer()` returns one notice to the turn:
    - this turn observed a mid-turn user message (`step > 1` and the batch contains a `source.kind === 'user'` message), **or** `inbox.nextTurn` already holds a queued message;
@@ -75,7 +75,9 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 | `guard` | `true` | Enable the turn-stopping guard |
 | `onInterject` | `triage` | On a mid-turn message, persist the suspended plan (`triage`) or only keep the guard (`off`) |
 | `returnPolicy` | `auto` | Nudge the turn (`auto`) or record only until the user speaks again (`wait`). `wait` disables the nudge; on its own it **cannot abort a running turn** — see DESIGN §7.4 |
-| `forceStop` | `false` | End the turn at the step boundary the interjection landed on and hand that message to the next turn. Off by default; meant to be paired with `returnPolicy: wait` |
+| `forceStop` | `off` | **Experimental.** `off` / `always` / `triage`. End the turn at the step boundary the interjection landed on and hand that message to the next turn. `triage` stops only when the text does not read as a cancellation or an amendment. Off by default; ending a turn makes the host play its end-of-task cue, so this is not the recommended path |
+| `cancelPatterns` | built-in list | Regexes (case-insensitive) that mark an interjection as "drop the plan". Supplying an array replaces the defaults |
+| `amendPatterns` | built-in list | Regexes that mark an interjection as "same plan, changed". Supplying an array replaces the defaults |
 | `triggerQueued` | `true` | Also act when a queued message is waiting for the next turn |
 | `skipWhenAsking` | `true` | Skip when the turn ended with a question |
 | `maxNudgesPerSession` | `6` | Nudges per session; `0` = observe only |
@@ -101,7 +103,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 
 ```powershell
 cd <path-to-this-repo>
-node --test     # 40 tests: policy decisions + apply() wiring, no harness needed
+node --test     # 48 tests: policy decisions + apply() wiring, no harness needed
 ```
 
 Manual end-to-end after a restart: give the agent a three-step task that starts with a todo list, inject an unrelated question during step 2, then check that a `[task-anchor]` notice appears before the turn closes and that the model accounts for the remaining items.
@@ -110,7 +112,21 @@ Log keys: `task-anchor: steered a reminder` (info), `task-anchor: mid-turn user 
 
 Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system prompt contains the contract section, an unrelated mid-turn question produced a `suspended-<session>.json` plus the `## Suspended work` block, and the turn closed with an `[task-anchor]` notice. Rewriting the todo list without the suspended items deleted the file.
 
-`returnPolicy: wait` was also tried: the guard stayed quiet as intended, **but the turn did not stop** — the model kept working on the suspended plan on its own. That is the honest boundary: `wait` removes the nudge, and the only thing left to ask for a stop is the contract text, so `### Waiting for the user` was added to state it explicitly. If the model ignores it, `agent/turn-stopping` cannot abort a running turn (`agent.steer()` can only add a step). `forceStop: true` closes that gap mechanically: the `agent/pre-step` handler parks the claimed message into `next-turn` and returns `reject`, so the step never opens, `turn/end` records `blocked`, and the next turn starts with the interjection. Not yet verified live.
+`returnPolicy: wait` was also tried: the guard stayed quiet as intended, **but the turn did not stop** — the model kept working on the suspended plan on its own. That is the honest boundary: `wait` removes the nudge, and the only thing left to ask for a stop is the contract text, so `### Waiting for the user` was added to state it explicitly. The main path is therefore not a forced stop but the same-turn block described above: the model sees what is parked and what just arrived, in the turn where it happened, and it is the one that decides. `forceStop: always` exists as an experimental mechanical stop: the `agent/pre-step` handler parks the claimed message into `next-turn` and returns `reject`, so the step never opens, `turn/end` records `blocked`, and the next turn starts with the interjection. Verified live on 2026-11-15 (`turn/end reason=blocked` → message re-delivered at the next turn's start), and the same run showed the cost: the host plays its end-of-task cue, which the user reads as "my task was killed". `forceStop: triage` narrows that to messages that do not read as a cancellation or an amendment; keyword heuristic, not verified live.
+
+### Experimental: the hard stop (`forceStop`)
+
+**Off by default** (`forceStop: off`), and not the recommended path — the same-turn block above is. It exists for people who want a mechanical guarantee instead of a suggestion.
+
+**Mechanism.** On `agent/pre-step`, when the claimed batch contains a user message, `parkAndStop()` appends each interjection to the inbox as `next-turn` (written first, so a crash cannot lose it) and returns `{ kind: 'reject' }`. The loop turns that into `turnEnds = { kind: 'blocked' }` and returns without calling `step()` (`dsh-agent-loop/src/agent.ts:354-357`), so the host sees a normal end of turn and the message is delivered verbatim as the opening of the next one.
+
+**Limits.**
+- It ends the **turn**, not the plan: the todo list survives, the transcript up to that point survives, earlier tool results stay readable.
+- The rejected turn has **no assistant closing line**; the transcript just stops.
+- The host plays its end-of-task cue, indistinguishable from "the task finished" — that is the cost that keeps it off by default.
+- `triage` narrows the stop to text that matches neither `cancelPatterns` nor `amendPatterns`. Those are keyword heuristics, not semantics: an unrelated question with no cancel/amend wording still reads as separate work and still stops.
+- Parked messages are re-delivered when the loop goes idle. If it never does, they stay in `next-turn` and ride along with the next user message.
+- Config: `forceStop: off | always | triage`, `returnPolicy: auto | wait`. Defaults are `off` + `auto`.
 
 ## Status
 

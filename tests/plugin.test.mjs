@@ -249,7 +249,8 @@ test('a triage interjection persists the plan and shows it in the prompt', async
   )
 
   const body = sectionText(sections[0], agent)
-  assert.match(body, /## Suspended work/)
+  // Same turn: the model gets the decision block, not the "later reminder" one.
+  assert.match(body, /## Interjection during this turn/)
   assert.match(body, /补测试/)
   assert.match(body, /顺便把日志级别也降一下/)
 
@@ -436,9 +437,30 @@ test('the suspension block replaces the open items line', async () => {
   )
 
   const body = sectionText(sections[0], agent)
-  assert.match(body, /## Suspended work/)
+  // The turn is still running, so the block asks for a decision instead of
+  // presenting the plan as something that merely waits for the user.
+  assert.match(body, /## Interjection during this turn/)
+  assert.match(body, /Decide what that message is/)
   // One list, not two: the block already names the same items.
   assert.doesNotMatch(body, /Open items:/)
+})
+
+test('after the turn ends the same snapshot renders as suspended work', async () => {
+  const { ctx, handlers, sections } = fakeCtx()
+  apply(ctx, { storeDir: join(scratch, 'open-anchor-later') })
+  const events = turnEvents('先按你说的改日志。')
+  const { agent } = bareAgent('sess-anchor-later', events)
+  await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [userMessage('顺便把日志级别也降一下')] },
+    async () => ({}),
+  )
+  // A later turn started: the interjection is now history, and the block is a
+  // reminder to resume, not a decision to make right now.
+  events.push({ ...ev('turn/start', { turn: 2 }), seq: 900 })
+
+  const body = sectionText(sections[0], agent)
+  assert.match(body, /## Suspended work/)
+  assert.doesNotMatch(body, /## Interjection during this turn/)
 })
 
 test('forceStop ends the turn at the interjection and hands it to the next turn', async () => {
@@ -493,4 +515,51 @@ test('forceStop is off unless the config asks for it', async () => {
 
   assert.equal(decision.kind, 'enter')
   assert.equal(agent.inbox.nextTurn.length, 0)
+})
+
+test('forceStop triage keeps a cancellation inside the turn', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { forceStop: 'triage' })
+  const { agent, followed } = fakeAgent(turnEvents('接着改。'))
+  const message = userMessage('算了，这个先不做了')
+
+  const decision = await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+  await new Promise(resolve => setImmediate(resolve))
+
+  assert.equal(decision.kind, 'enter', 'a cancellation is the model\'s to fold in, not a reason to cut the turn')
+  assert.equal(agent.inbox.nextTurn.length, 0)
+  assert.equal(followed.length, 0)
+})
+
+test('forceStop triage keeps an amendment inside the turn', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { forceStop: 'triage' })
+  const { agent } = fakeAgent(turnEvents('接着改。'))
+  const message = userMessage('第二段改成英文标题')
+
+  const decision = await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+
+  assert.equal(decision.kind, 'enter')
+  assert.equal(agent.inbox.nextTurn.length, 0)
+})
+
+test('forceStop triage still stops for what reads as separate work', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { forceStop: 'triage' })
+  const { agent } = fakeAgent(turnEvents('接着改。'))
+  const message = userMessage('炸鸡为什么比炸鸭炸鹅多？')
+
+  const decision = await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+
+  assert.deepEqual(decision, { kind: 'reject' })
+  assert.equal(agent.inbox.nextTurn.length, 1)
 })
