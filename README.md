@@ -47,6 +47,8 @@ Common root: the todo projection is cleared at `turn/start` (`packages/todo/tool
 
 4. **Observation** (`agent/pre-step`): read-only bookkeeping of which turns received an interjection; visible in debug logs.
 
+5. **First run** (`first-run.json`): the first start against a store adds a `## First run` section that names the switches (`returnPolicy`, `forceStop`, `onInterject`, `storeTtlDays`), their current values, and asks the model to state them and ask whether to change anything. The version in that note is read from `package.json`, so it cannot go stale. A marker file keeps it to one run; if the store is unwritable the note simply reappears next start.
+
 Snapshots are swept opportunistically: writing one deletes *other* sessions' `suspended-*.json` older than `storeTtlDays`. The plugin never touches DSH's own session archive.
 
 ## Install (local profile)
@@ -103,7 +105,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 
 ```powershell
 cd <path-to-this-repo>
-node --test     # 48 tests: policy decisions + apply() wiring, no harness needed
+node --test     # 52 tests: policy decisions + apply() wiring, no harness needed
 ```
 
 Manual end-to-end after a restart: give the agent a three-step task that starts with a todo list, inject an unrelated question during step 2, then check that a `[task-anchor]` notice appears before the turn closes and that the model accounts for the remaining items.

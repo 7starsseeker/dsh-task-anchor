@@ -11,7 +11,7 @@ import test, { after } from 'node:test'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { apply } from '../lib/index.js'
+import { apply, version } from '../lib/index.js'
 import { snapshotFileName } from '../lib/store.js'
 
 // The default store is `DSH_HOME/task-anchor`; these tests run the real
@@ -254,7 +254,7 @@ test('a triage interjection persists the plan and shows it in the prompt', async
   assert.match(body, /补测试/)
   assert.match(body, /顺便把日志级别也降一下/)
 
-  const files = readdirSync(dir)
+  const files = snapshots(dir)
   assert.equal(files.length, 1)
   assert.match(files[0], /^suspended-.*\.json$/)
   const saved = JSON.parse(readFileSync(join(dir, files[0]), 'utf8'))
@@ -298,7 +298,7 @@ test('onInterject off writes nothing and keeps the section literal', async () =>
     { agent, turn: 1, step: 2, messages: [userMessage('插一句')], signal: new AbortController().signal },
     async () => ({ kind: 'enter', messages: [] }),
   )
-  assert.equal(existsSync(dir), false)
+  assert.equal(snapshots(dir).length, 0)
 })
 
 test('returnPolicy wait records the suspension but leaves the turn alone', async () => {
@@ -315,7 +315,7 @@ test('returnPolicy wait records the suspension but leaves the turn alone', async
 
   assert.equal(steered.length, 0)
   assert.match(sectionText(sections[0], agent), /Suspended work/)
-  assert.equal(readdirSync(dir).length, 1)
+  assert.equal(snapshots(dir).length, 1)
 })
 
 test('rewriting the plan without the suspended items clears the anchor', async () => {
@@ -338,7 +338,7 @@ test('rewriting the plan without the suspended items clears the anchor', async (
   await handlers.get('agent/turn-stopping')({ agent, turn: 1, signal: new AbortController().signal })
 
   assert.doesNotMatch(sectionText(sections[0], agent), /## Suspended work/)
-  assert.equal(readdirSync(dir).length, 0)
+  assert.equal(snapshots(dir).length, 0)
 })
 
 test('an anchor survives quiet turns and ignores unrelated new work', async () => {
@@ -371,7 +371,7 @@ test('an anchor survives quiet turns and ignores unrelated new work', async () =
   // … and rewriting the plan without the suspended item is the cancel signal.
   events.push(ev('todo/write', { todos: [{ content: '写文档', status: 'in_progress' }] }))
   assert.doesNotMatch(sectionText(sections[0], agent), /## Suspended work/)
-  assert.equal(readdirSync(dir).length, 0)
+  assert.equal(snapshots(dir).length, 0)
 })
 
 test('a restarted process reads the suspended plan from disk', async () => {
@@ -388,7 +388,7 @@ test('a restarted process reads the suspended plan from disk', async () => {
     { agent: a1.agent, turn: 1, step: 2, messages: [userMessage('插一句')] },
     async () => ({}),
   )
-  assert.equal(readdirSync(dir).length, 1)
+  assert.equal(snapshots(dir).length, 1)
 
   // A new process: new plugin instance, new agent, same session id and log.
   const second = fakeCtx()
@@ -562,4 +562,42 @@ test('forceStop triage still stops for what reads as separate work', async () =>
 
   assert.deepEqual(decision, { kind: 'reject' })
   assert.equal(agent.inbox.nextTurn.length, 1)
+})
+
+/**
+ * Only the plugin's snapshot files. The store directory also holds
+ * `first-run.json` (the one-shot options note), which is not a snapshot and
+ * must not make "no suspension was left behind" look false.
+ * @param dir - the store directory.
+ * @returns the snapshot file names.
+ */
+function snapshots(dir) {
+  try {
+    return readdirSync(dir).filter((name) => /^suspended-.*\.json$/.test(name))
+  } catch {
+    return []
+  }
+}
+test('first run states the switches once and leaves a marker', () => {
+  const dir = join(scratch, 'first-run')
+  const first = fakeCtx()
+  apply(first.ctx, { storeDir: dir })
+  const body = sectionText(first.sections[0], undefined)
+  assert.match(body, /## First run/)
+  assert.match(body, /returnPolicy: auto/)
+  assert.match(body, /forceStop: off/)
+  assert.match(body, /cordis\.patch\.yml/)
+  assert.equal(existsSync(join(dir, 'first-run.json')), true)
+
+  // The next process against the same store must not repeat the note.
+  const second = fakeCtx()
+  apply(second.ctx, { storeDir: dir })
+  const later = sectionText(second.sections[0], undefined)
+  assert.doesNotMatch(later, /## First run/)
+  assert.match(later, /Mid-turn user messages/)
+})
+
+test('the first-run note takes its version from package.json', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(pkg.version, version)
 })

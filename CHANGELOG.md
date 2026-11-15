@@ -2,6 +2,16 @@
 
 Net changes between **public releases**. Internal iterations that never shipped are not listed.
 
+## 0.4.1 — 2026-11-15
+
+**First-run note**
+
+- The first start against a store appends a `## First run` section: the switches that change behaviour (`returnPolicy`, `forceStop`, `onInterject`, `storeTtlDays`), their current values, and an instruction to state them in one short paragraph and ask whether to change anything. `first-run.json` records that the note was shown; an unwritable store only means it appears again on the next start.
+
+**Tests**
+
+- Snapshot assertions look only at `suspended-*.json`, because the store now also holds the first-run marker. Two new wiring tests pin the note to one run per store and keep the stated version equal to `package.json`; two policy tests cover the note's wording.
+
 ## 0.4.0 — 2026-11-15
 
 **Interjection, in the turn it lands** (the main path)

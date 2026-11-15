@@ -20,7 +20,7 @@
 
 ```bash
 node --check lib/index.js && node --check lib/policy.js && node --check lib/store.js
-node --test          # 期望：48 条，0 失败
+node --test          # 期望：52 条，0 失败
 npm pack --dry-run          # 自己读一遍：不能有 tests、临时脚本、本地文件
 ```
 

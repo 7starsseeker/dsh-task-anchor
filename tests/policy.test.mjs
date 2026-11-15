@@ -9,6 +9,7 @@ import {
   assistantText,
   buildAnchorText,
   buildContractText,
+  buildFirstRunText,
   buildNoticeText,
   classifyInterjection,
   currentTurnOf,
@@ -266,4 +267,27 @@ test('forceStop normalizes to off/always/triage and drops broken patterns', () =
   const custom = normalizeConfig({ cancelPatterns: ['打住', '('] })
   assert.equal(custom.cancelPatterns.length, 1, 'an uncompilable pattern is dropped')
   assert.equal(classifyInterjection('打住吧', custom), 'cancel')
+})
+
+test('the first-run note names the switches and their current values', () => {
+  const text = buildFirstRunText({
+    version: '9.9.9',
+    returnPolicy: 'wait',
+    forceStop: 'triage',
+    onInterject: 'off',
+    storeTtlDays: 3,
+  })
+  assert.match(text, /^## First run/)
+  assert.match(text, /task-anchor v9\.9\.9/)
+  assert.match(text, /returnPolicy: wait/)
+  assert.match(text, /forceStop: triage/)
+  assert.match(text, /onInterject: off/)
+  assert.match(text, /storeTtlDays: 3/)
+  assert.match(text, /cordis\.patch\.yml/)
+  assert.match(text, /[Aa]sk whether the user wants to change/)
+  assert.match(text, /Do not repeat this note on later runs/)
+})
+
+test('the first-run note works without a version', () => {
+  assert.match(buildFirstRunText({}), /`task-anchor` against this store/)
 })

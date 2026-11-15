@@ -7,10 +7,11 @@ DSH 插件仓。作用域：让模型在中途收到用户消息时先判断它�
 - 插件 id = `lib/index.js` 的 `export const name` = `task-anchor`；包名 = `dsh-task-anchor`；`cordis.patch.yml` 里 `id` 与 `name` 必须分别等于这两者。
 - 注入给模型的 notice 只能用自有 source kind `plugin:task-anchor`。写成 `{kind:'plugin', plugin:'task-anchor'}` 能写进日志但读不回来，恢复会话报 `SessionFormatError`。
 - 零依赖 ESM（Node >= 22.15）。不要 import DSH 内部包：运行时解析不到，插件要能在纯 node 下被 `node --check` / 测试直接跑。
+- 版本号只有一处：`package.json`。`lib/index.js` 用 `import manifest from '../package.json' with { type: 'json' }` 读它，不要再在代码里写死版本字符串（首次运行提示与它就靠这条保持一致）。
 
 ## 命令
 
-- 测试：`node --test` —— 48 条，纯 fake ctx，不启动 DSH。
+- 测试：`node --test` —— 52 条，纯 fake ctx，不启动 DSH。
 - 语法：`node --check lib/index.js; node --check lib/policy.js; node --check lib/store.js`
 
 ## 生效方式

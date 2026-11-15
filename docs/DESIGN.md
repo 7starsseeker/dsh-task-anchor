@@ -74,7 +74,7 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 ## 6. 验证策略
 
-- 48 条单测：21 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、同回合/跨回合两种锚点措辞、`Open items` 行、取消后不复述、授权后必须回报、`wait`/`auto` 两种收尾措辞、插话三分类、当前回合推导）、26 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、同回合与跨回合两种渲染、`Open items` 三种形态、孤儿清扫、`forceStop` 的六条：停并交棒 / 没 idle 就留在队列 / 默认关 / triage 放过取消 / triage 放过补充 / triage 仍停无关话题）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
+- 52 条单测：23 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、同回合/跨回合两种锚点措辞、`Open items` 行、取消后不复述、授权后必须回报、`wait`/`auto` 两种收尾措辞、插话三分类、当前回合推导、首次运行提示）、28 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、同回合与跨回合两种渲染、`Open items` 三种形态、孤儿清扫、首次运行的渲染与标记、`PLUGIN_VERSION` 与 `package.json` 一致、`forceStop` 的六条：停并交棒 / 没 idle 就留在队列 / 默认关 / triage 放过取消 / triage 放过补充 / triage 仍停无关话题）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
 - 端到端手测脚本见 README「验证」；日志关键字 `task-anchor: steered a reminder`。
 - 不写「假装通过」的集成测试：真实 turn-stopping 需要模型产出，成本高且不稳定；改为日志可观察 + 单测覆盖判定。
 
@@ -160,6 +160,16 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 这个方案不碰 inbox、不 reject、不重投消息，因此没有提示音、没有 `blocked`、不会让消息在 UI 与转录里错位；模型仍然是唯一的语义判断者，插件只是保证它**在正确的那一步**拿到正确的事实。风险也很直白：模型可以不照做——它读到了提示仍然继续跑。那种情况下的兜底是 `turn-stopping` 的 steer（`auto` 模式）或契约本身，而不是把决定权收回到插件手里。
 
 实现位置：`lib/policy.js` 的 `currentTurnOf(events)` 与 `buildAnchorText({ sameTurn })`、`lib/index.js` 的 `anchorTextFor()`。
+
+### 7.7 首次运行提示：把开关摆到用户面前一次
+
+插件没有客户端界面（`inject = ['systemPrompt']`，只往 prompt 里塞文字、从 todo 日志里读状态），所以「部署后告诉用户有哪些选项」只能借模型的嘴说一次。做法：
+
+- `apply()` 里查 `<storeDir>/first-run.json` 是否存在；不存在 ⇒ 本次进程算首次，立刻写标记（失败静默，下次再来）。
+- 首次时在契约段后追加 `## First run`：列出 `returnPolicy` / `forceStop` / `onInterject` / `storeTtlDays` 的当前值与语义，要求模型用一小段话转述并问用户要不要改，且「不要在后续运行里重复这段」。版本号 `import manifest from '../package.json' with { type: 'json' }` 直接读包清单，所以改版本号时这里不会被忘记同步。
+- 标记写在 store 目录而不是别处：它天然跟着 `storeDir` 走，测试与用户都能看到；`pruneSnapshots()` 只扫 `suspended-*.json`，不会被它干扰。
+
+为什么不做成 UI 弹窗：那要改 DSH 前端或依赖某个 client 插件，超出本仓边界；而模型转述一次正好符合「插件只提供事实、用户自己决定」的既有分工。
 
 ## 8. 一次真实的静默失败（0.2.2-rc.3）
 守卫上线后在真实插话里没有 steer，日志里也没有 `steered a reminder`。根因不是事件名，而是插件读了 `agent.session.events`：

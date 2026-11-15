@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.4.0 已实现、**48 条单测通过**、已挂载进 desktop profile。契约段常驻、插话时落盘 `suspended-<session>.json`、回合收尾时 `agent.steer` 递回 notice、取消路径（改写清单 → 锚点消失 → 快照删除）都已在 live 会话里跑通。**同回合插话提示**（`## Interjection during this turn`）是当前主路径：插话当回合就把「挂起的是哪几项 + 打断它的那句话 + 三个读法」摆到模型面前，由模型自己决定取消 / 补充 / 另起一件事，插件不打断。`returnPolicy: wait` 实测过：守卫保持安静，但回合不会自己停，所以补了 `### Waiting for the user` 契约段。`forceStop` 是**实验性**的机械打断（`off` 默认 / `always` / `triage`）：`always` 已 live 验证（`turn/end reason=blocked` + 消息原样进下一回合），代价是宿主会播一次「任务结束」提示音，因此不再作为推荐路径；`triage` 尚未 live 验证。实现见 DESIGN §7.5–7.6。
+v0.4.1 已实现、**52 条单测通过**、已挂载进 desktop profile。契约段常驻、插话时落盘 `suspended-<session>.json`、回合收尾时 `agent.steer` 递回 notice、取消路径（改写清单 → 锚点消失 → 快照删除）都已在 live 会话里跑通。**同回合插话提示**（`## Interjection during this turn`）是当前主路径：插话当回合就把「挂起的是哪几项 + 打断它的那句话 + 三个读法」摆到模型面前，由模型自己决定取消 / 补充 / 另起一件事，插件不打断。`returnPolicy: wait` 实测过：守卫保持安静，但回合不会自己停，所以补了 `### Waiting for the user` 契约段。`forceStop` 是**实验性**的机械打断（`off` 默认 / `always` / `triage`）：`always` 已 live 验证（`turn/end reason=blocked` + 消息原样进下一回合），代价是宿主会播一次「任务结束」提示音，因此不再作为推荐路径；`triage` 尚未 live 验证。实现见 DESIGN §7.5–7.7。首次对着一个 store 启动时会多渲染一段 `## First run`（0.4.1）：列 `returnPolicy` / `forceStop` / `onInterject` / `storeTtlDays` 当前值，要求模型转述并询问是否修改；`first-run.json` 保证只出现一次。
 
 ## 要解决的问题（出处）
 
@@ -18,7 +18,7 @@ v0.4.0 已实现、**48 条单测通过**、已挂载进 desktop profile。契�
 
 第 3 条由本插件补：插话时把「被挂起的计划」落盘一次，之后每次组装 prompt 都把它渲染回来。
 
-## 本插件的三个机制
+## 本插件的机制
 
 | 机制 | 挂点 | 作用 | 是否落盘 |
 | --- | --- | --- | --- |
@@ -26,6 +26,7 @@ v0.4.0 已实现、**48 条单测通过**、已挂载进 desktop profile。契�
 | 挂起锚 | 同一 section，末尾追加 `## Suspended work` | 插话时把当时未完成的 todo 条目写进 `suspended-<session>.json`；之后每次组装按「挂起项 ∩ 当前未完成项」渲回 prompt（未完成项 + 打断它的那句话 + 停在哪 + 当时的会话事件号，可用 `session_event_read` 回读证据）；交集为空即删 | 是（每会话一份小 JSON） |
 | 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催 | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
 | 同回合插话提示 | 同一 section，换成 `## Interjection during this turn` | 快照的 `turn` 等于日志里最后一个 `turn/start` 时，说明这条插话就发生在**当前回合**：渲染被挂起的条目 + 插话原文 + 三个读法（取消 / 补充 / 另起一件事），并要求模型在**本回合**内做出判断、若属另一件事就停在这里、把挂起的项留给下一回合。不打断、不重投消息，纯粹把两个任务并排摆给模型 | 否（复用挂起快照） |
+| 首次运行提示 | 同一 section，追加 `## First run` | 第一次对着某个 store 启动时，列出 `returnPolicy` / `forceStop` / `onInterject` / `storeTtlDays` 的当前值，要求模型用一小段话转述并问是否修改；`first-run.json` 标记保证只出现一次（store 不可写就下次再出现，不报错） | 是（一个标记文件） |
 | 拦停（`forceStop`，实验性） | `agent/pre-step` → `reject` | 插话落到 step 边界时把这一批消息放回 `next-turn`，返回 `reject`：step 不打开、不花模型调用，`turn/end` 记 `blocked`，下一回合从这条插话开始。`off`（默认）/ `always` / `triage`；`triage` 用关键词表判取消与补充修改，只对「像另一件事」的插话生效。代价：宿主会播一次「任务结束」提示音，所以不作推荐路径 | 否（消息在 inbox 里，不是新事件） |
 
 不做的事（有意）：不判定插话与任务的关系（模型判）、不延迟/不阻止插话、不改 core 的逐字投影、不做 UI 标注、不替模型拆 subagent。
