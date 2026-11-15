@@ -1,0 +1,44 @@
+{
+  "name": "dsh-task-anchor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Keep the running task anchored when a mid-turn user message arrives: a prompt contract plus a turn-stopping guard that makes unfinished work explicit instead of silently dropped.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "check": "node --check lib/index.js && node --check lib/policy.js"
+  },
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "steering",
+    "interjection",
+    "task-anchor",
+    "goal-drift",
+    "zero-dependency"
+  ],
+  "license": "MIT"
+}
