@@ -1,6 +1,6 @@
 /**
  * Policy tests — no harness, no Cordis, just a session-log-shaped array.
- * Run with `node --test tests/` (or `pnpm test`).
+ * Run with `node --test` (or `pnpm test`).
  */
 
 import assert from 'node:assert/strict'

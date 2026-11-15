@@ -30,7 +30,7 @@ v0.2.2 已实现、**37 条单测通过**、已挂载进 desktop profile。三�
 
 ## 已有证据（真实输出）
 
-- 单测：`node --test tests/` → `tests 37` / `pass 37` / `fail 0`（policy 19 + plugin 17 + store 1）。
+- 单测：`node --test` → `tests 37` / `pass 37` / `fail 0`（policy 19 + plugin 17 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
 - profile 集成校验（headless 脚本）：`resolved: <本仓路径>` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
 - 符号链接：`node_modules/dsh-task-anchor` → 本仓目录（SymbolicLink）。

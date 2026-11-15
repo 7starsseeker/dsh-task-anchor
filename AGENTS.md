@@ -10,7 +10,7 @@ DSH 插件仓。作用域：让模型在中途收到用户消息时先判断它�
 
 ## 命令
 
-- 测试：`node --test tests/` —— 37 条，纯 fake ctx，不启动 DSH。
+- 测试：`node --test` —— 37 条，纯 fake ctx，不启动 DSH。
 - 语法：`node --check lib/index.js; node --check lib/policy.js; node --check lib/store.js`
 
 ## 生效方式

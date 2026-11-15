@@ -29,4 +29,4 @@ Net changes between **public releases**. Internal iterations that never shipped 
 
 **Maintenance**: writing a snapshot sweeps other sessions' `suspended-*.json` older than `storeTtlDays`; DSH's session archive is never touched.
 
-**Tests**: 37 (`node --test tests/`, no harness needed). Zero runtime dependencies.
+**Tests**: 37 (`node --test`, no harness needed). Zero runtime dependencies.

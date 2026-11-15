@@ -20,7 +20,7 @@ For maintainers. Three rules first:
 
 ```bash
 node --check lib/index.js && node --check lib/policy.js && node --check lib/store.js
-node --test tests/          # expect: 36 tests, 0 failures
+node --test          # expect: 37 tests, 0 failures
 npm pack --dry-run          # read it: no tests, no scratch scripts, no local files
 ```
 

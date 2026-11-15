@@ -29,4 +29,4 @@
 
 **维护**：写快照时顺手清理其它会话超过 `storeTtlDays` 天的 `suspended-*.json`；DSH 自己的会话归档从不触碰。
 
-**测试**：37 条（`node --test tests/`，不需要启动 harness）。零运行时依赖。
+**测试**：37 条（`node --test`，不需要启动 harness）。零运行时依赖。

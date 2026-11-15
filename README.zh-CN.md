@@ -110,7 +110,7 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 
 ```powershell
 cd <本仓路径>
-node --test tests/     # 37 条单测：策略判定 + apply() 接线，不需要启动 DSH
+node --test     # 37 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
 端到端手测（重启后）：

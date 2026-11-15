@@ -99,7 +99,7 @@ Under `config:` in `cordis.patch.yml`; every key is optional.
 
 ```powershell
 cd <path-to-this-repo>
-node --test tests/     # 37 tests: policy decisions + apply() wiring, no harness needed
+node --test     # 37 tests: policy decisions + apply() wiring, no harness needed
 ```
 
 Manual end-to-end after a restart: give the agent a three-step task that starts with a todo list, inject an unrelated question during step 2, then check that a `[task-anchor]` notice appears before the turn closes and that the model accounts for the remaining items.
