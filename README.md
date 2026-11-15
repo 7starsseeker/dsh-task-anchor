@@ -11,7 +11,6 @@ When a task is interrupted mid-flight, don't let the original task disappear.
 [![node](https://img.shields.io/badge/node-%3E%3D22.15-brightgreen.svg)](package.json)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-1F3A8A.svg)](https://github.com/7starsseeker)
-[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/7starsseeker/dsh-task-anchor/)
 
 A zero-dependency DeepSeek Harness host plugin. **When a turn receives a mid-turn user message and ends with unfinished todos, it steers one notice back into that turn** so the model either finishes the work or states plainly what remains.
 
