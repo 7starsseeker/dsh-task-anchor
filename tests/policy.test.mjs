@@ -197,3 +197,10 @@ test('contract makes a cancellation silent afterwards', () => {
   assert.match(body, /no "as you cancelled X"/)
   assert.match(body, /answer once and drop it again/)
 })
+
+test('contract turns a granted answer into a reported action', () => {
+  const body = buildContractText()
+  assert.match(body, /### Answering a question you asked/)
+  assert.match(body, /not a fact to file away/)
+  assert.match(body, /states what ran and what came back/)
+})

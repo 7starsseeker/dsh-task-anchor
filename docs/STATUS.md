@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.2.1 已实现、**35 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。只剩 `returnPolicy: wait` 一条未实测。
+v0.2.2 已实现、**36 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。只剩 `returnPolicy: wait` 一条未实测。
 
 ## 要解决的问题（出处）
 
@@ -22,7 +22,7 @@ v0.2.1 已实现、**35 条单测通过**、已挂载进 desktop profile。三�
 
 | 机制 | 挂点 | 作用 | 是否落盘 |
 | --- | --- | --- | --- |
-| 契约段 | `ctx.systemPrompt.section(...)`，order 540，每请求重新渲染 | 告诉模型：插话是新输入、不自动等于替换当前任务；五类关系 + 三类记账（取消/补充/挂起）+ 双任务时何时拆 subagent、按什么顺序做 + 证据何时该落盘（重取昂贵的中间结论写成文件，todo 指向它）。没有挂起项时，末尾追加一行 `Open items: …`（todo 面板只在当轮可见，日志不是） | 否（system prompt，不污染转录） |
+| 契约段 | `ctx.systemPrompt.section(...)`，order 540，每请求重新渲染 | 告诉模型：插话是新输入、不自动等于替换当前任务；五类关系 + 三类记账（取消/补充/挂起）+ 取消之后不再复述 + 用户回答你问过的问题（「可以」「go ahead」、选择、批准）是决定、要建 todo 并在回复里写清「跑了什么、回了什么」+ 双任务时何时拆 subagent、按什么顺序做 + 证据何时该落盘（重取昂贵的中间结论写成文件，todo 指向它）。没有挂起项时，末尾追加一行 `Open items: …`（todo 面板只在当轮可见，日志不是） | 否（system prompt，不污染转录） |
 | 挂起锚 | 同一 section，末尾追加 `## Suspended work` | 插话时把当时未完成的 todo 条目写进 `suspended-<session>.json`；之后每次组装按「挂起项 ∩ 当前未完成项」渲回 prompt（未完成项 + 打断它的那句话 + 停在哪 + 当时的会话事件号，可用 `session_event_read` 回读证据）；交集为空即删 | 是（每会话一份小 JSON） |
 | 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催 | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
 
@@ -30,7 +30,7 @@ v0.2.1 已实现、**35 条单测通过**、已挂载进 desktop profile。三�
 
 ## 已有证据（真实输出）
 
-- 单测：`node --test tests/` → `tests 35` / `pass 35` / `fail 0`（policy 17 + plugin 17 + store 1）。
+- 单测：`node --test tests/` → `tests 36` / `pass 36` / `fail 0`（policy 18 + plugin 17 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
 - profile 集成校验（headless 脚本）：`resolved: T:\dsh-task-anchor` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
 - 符号链接：`node_modules\dsh-task-anchor` → `..\..\..\..\..\dsh-task-anchor`（SymbolicLink）。

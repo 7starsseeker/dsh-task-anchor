@@ -74,7 +74,7 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 ## 6. 验证策略
 
-- 35 条单测：17 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、`Open items` 行、取消后不复述）+ 17 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、`Open items` 三种形态、孤儿清扫）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
+- 36 条单测：18 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、`Open items` 行、取消后不复述、授权后必须回报）+ 17 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、`Open items` 三种形态、孤儿清扫）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
 - 端到端手测脚本见 README「验证」；日志关键字 `task-anchor: steered a reminder`。
 - 不写「假装通过」的集成测试：真实 turn-stopping 需要模型产出，成本高且不稳定；改为日志可观察 + 单测覆盖判定。
 
