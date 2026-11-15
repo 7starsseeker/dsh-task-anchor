@@ -32,11 +32,7 @@ npm pack --dry-run          # read it: no tests, no scratch scripts, no local fi
 - `README.md` + `README.zh-CN.md`: keep the config table and the mechanism list in sync. English is the default file.
 - Bump the test count wherever it appears: `README.md`, `README.zh-CN.md`, `AGENTS.md`, `docs/DESIGN.md`, `docs/STATUS.md`.
 
-## 4. The deliberate gap
-
-`package.json` ships with `"private": true`. That is the one edit this release needs from you: flip it to `false` in the same commit that bumps the version. Without it `npm publish` refuses; with it a stray `npm publish` from a dev checkout could go out, so the flip belongs **after** the tests are green and the tag is planned.
-
-## 5. Commit and tag
+## 4. Commit and tag
 
 ```bash
 git add -A
@@ -45,15 +41,15 @@ git tag v0.2.2
 git push origin main --tags
 ```
 
-## 6. Publish
+## 5. Publish
 
 ```bash
 npm publish --access public
 ```
 
-CI publishing is intentionally not wired yet. When it is, use npm **trusted publishing** (OIDC) and let the workflow publish from a tag — do not add an `NPM_TOKEN` secret to the repository. That switch is the "one more update" the metadata is prepared for: `publishConfig` is already public.
+CI publishing is intentionally not wired yet. When it is, use npm **trusted publishing** (OIDC) and let the workflow publish from a tag — do not add an `NPM_TOKEN` secret to the repository.
 
-## 7. After publish
+## 6. After publish
 
 - Create the GitHub release from the tag; paste the CHANGELOG section and the raw test output.
 - Verify the npm page renders the README, LICENSE and badges; check `npm view dsh-task-anchor dist-tags`.
