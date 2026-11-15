@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.2.0 已实现、**32 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。只剩 `returnPolicy: wait` 一条未实测。
+v0.2.1 已实现、**35 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。只剩 `returnPolicy: wait` 一条未实测。
 
 ## 要解决的问题（出处）
 
@@ -30,7 +30,7 @@ v0.2.0 已实现、**32 条单测通过**、已挂载进 desktop profile。三�
 
 ## 已有证据（真实输出）
 
-- 单测：`node --test tests/` → `tests 32` / `pass 32` / `fail 0`（policy 16 + plugin 16）。
+- 单测：`node --test tests/` → `tests 35` / `pass 35` / `fail 0`（policy 17 + plugin 17 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
 - profile 集成校验（headless 脚本）：`resolved: T:\dsh-task-anchor` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
 - 符号链接：`node_modules\dsh-task-anchor` → `..\..\..\..\..\dsh-task-anchor`（SymbolicLink）。
@@ -57,13 +57,14 @@ v0.2.0 已实现、**32 条单测通过**、已挂载进 desktop profile。三�
 - **`contract: false` 会连锚点一起关掉**：两者共用一个 section（这样稳态 token 成本为 0，也不必维护第二个注册）。
 - **todo 面板是「当轮」表面**：回合结束后面板可能不再显示，但 session log 里的 `todo/write` 还在。`Open items:` 那一行就是给「面板看不见、日志还在」这种情况兜底的；它不按 `maxStaleTurns` 过期——清单本身就是用户可见的事实，除非模型重写清单，否则一直算欠着。
 - **落盘目录**：`DSH_HOME/task-anchor`；`DSH_HOME` 由宿主进程环境提供，核心包不暴露 home 服务的查询接口。
+- **孤儿快照按年龄清**：会话崩掉或被搁置时，没人再来删它的 `suspended-*.json`；写新快照时会顺手删掉「不属于当前会话且超过 `storeTtlDays`（默认 7 天）」的那些。只扫本目录、只认 `suspended-*.json`，不碰 `DSH_HOME/sessions` 的会话归档，也不删当前会话的文件。模型忘了改 todo 导致的「锚点一直显示」不属于孤儿，那是「还欠着」的信号，不自动清。
 - **与同类插件叠加**：`dsh-loop-continue`、`dsh-early-stop-guard` 也挂 `agent/turn-stopping` 并 `steer`。本插件每 turn 最多一次，但两个插件可能各催一次。
 
 ## 关键位置
 
 - `lib/index.js`：`export const name = 'task-anchor'`；`NOTICE_SOURCE_KIND`；`SECTION_ORDER = 540`；`noticeMessage()`；`apply()`；`snapshotFor/forget/remember/anchorTextFor`；`agent/pre-step` 观察 + 落盘；`agent/turn-stopping` 维护锚点 + 守卫。
 - `lib/policy.js`：`isUserMessage` / `textOf` / `interjectionText` / `detectInterjection` / `assistantText` / `lastAssistantText` / `openTodos` / `buildContractText` / `buildAnchorText` / `buildOpenItemsText` / `buildNoticeText` / `normalizeConfig`（纯函数，全部单测覆盖）。
-- `lib/store.js`：`resolveStoreDir` / `snapshotFileName` / `saveSnapshot` / `loadSnapshot` / `removeSnapshot`（零依赖，只有 fs）。
+- `lib/store.js`：`resolveStoreDir` / `snapshotFileName` / `saveSnapshot` / `loadSnapshot` / `removeSnapshot` / `pruneSnapshots`（零依赖，只有 fs）。
 - `cordis.patch.yml`：全量默认配置（`onInterject` / `returnPolicy` / `storeDir` 是新增项）+ id/name 约定说明。
 
 ## 回滚

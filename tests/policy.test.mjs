@@ -157,11 +157,14 @@ test('normalizeConfig fills defaults and clamps bad values', () => {
   assert.equal(defaults.maxNoticeItems, 5)
   assert.equal(defaults.maxStaleTurns, 3)
 
-  const tuned = normalizeConfig({ enabled: false, maxNudgesPerSession: 0, maxNoticeItems: 0, maxStaleTurns: -2 })
+  const tuned = normalizeConfig({ enabled: false, maxNudgesPerSession: 0, maxNoticeItems: 0, maxStaleTurns: -2, storeTtlDays: -5 })
   assert.equal(tuned.enabled, false)
   assert.equal(tuned.maxNudgesPerSession, 0)
   assert.equal(tuned.maxNoticeItems, 1)
   assert.equal(tuned.maxStaleTurns, 0)
+  assert.equal(defaults.storeTtlDays, 7)
+  assert.equal(tuned.storeTtlDays, 0)
+  assert.equal(normalizeConfig({ storeTtlDays: 30 }).storeTtlDays, 30)
   assert.equal(tuned.contract, true)
 })
 
@@ -185,4 +188,12 @@ test('contract says where durable evidence belongs', () => {
   const body = buildContractText()
   assert.match(body, /### Keeping what you already found/)
   assert.match(body, /expensive to obtain again/)
+})
+
+test('contract makes a cancellation silent afterwards', () => {
+  const body = buildContractText()
+  assert.match(body, /### After a cancellation/)
+  assert.match(body, /silent from then on/)
+  assert.match(body, /no "as you cancelled X"/)
+  assert.match(body, /answer once and drop it again/)
 })

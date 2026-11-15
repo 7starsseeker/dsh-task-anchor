@@ -23,6 +23,10 @@
         returnPolicy: auto
         # 快照目录；省略时用 DSH_HOME/task-anchor，再退到 ~/.dsh/task-anchor。
         # storeDir: ''
+        # 孤儿快照的清理阈值：写快照时顺手删掉「不属于当前会话」且超过这么多天的
+        # suspended-*.json（会话崩掉/被搁置后没人再来删的那些）。只碰本目录、只碰
+        # suspended-*.json；0 表示关闭。
+        storeTtlDays: 7
         # true 时「本轮结束、下轮已有排队消息」也算触发条件（与插话共用同一守卫）。
         triggerQueued: true
         # 本轮最后一句是提问（以 ? / ？ 结尾）时不催，避免打断正常的「停下来问用户」。

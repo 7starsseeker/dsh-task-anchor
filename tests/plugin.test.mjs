@@ -8,10 +8,11 @@
 
 import assert from 'node:assert/strict'
 import test, { after } from 'node:test'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../lib/index.js'
+import { snapshotFileName } from '../lib/store.js'
 
 // The default store is `DSH_HOME/task-anchor`; these tests run the real
 // `apply()`, which persists interjections, so keep it in a scratch directory.
@@ -243,6 +244,30 @@ test('a triage interjection persists the plan and shows it in the prompt', async
   assert.equal(saved.interjection, '顺便把日志级别也降一下')
   assert.equal(saved.turn, 1)
   assert.deepEqual(saved.items, ['补测试'])
+})
+
+test('writing a snapshot sweeps stale orphans from other sessions only', async () => {
+  const dir = join(scratch, 'prune')
+  mkdirSync(dir, { recursive: true })
+  const stale = join(dir, snapshotFileName('session-abandoned'))
+  const fresh = join(dir, snapshotFileName('session-other'))
+  writeFileSync(stale, '{}')
+  writeFileSync(fresh, '{}')
+  const longAgo = new Date(Date.now() - 30 * 86_400_000)
+  utimesSync(stale, longAgo, longAgo)
+
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { storeDir: dir, storeTtlDays: 7 })
+  const { agent } = fakeAgent(turnEvents('先按你说的改日志。'))
+  await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [userMessage('顺便把日志级别也降一下')] },
+    async () => ({ kind: 'enter', messages: [] }),
+  )
+
+  const names = readdirSync(dir)
+  assert.equal(names.includes(snapshotFileName('session-abandoned')), false)
+  assert.ok(names.includes(snapshotFileName('session-other')))
+  assert.ok(names.includes(snapshotFileName(agent.session.id)))
 })
 
 test('onInterject off writes nothing and keeps the section literal', async () => {
