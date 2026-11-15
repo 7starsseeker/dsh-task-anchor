@@ -85,7 +85,8 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 | `contract` | `true` | 是否注入系统提示契约（约 320 tokens/请求）；同时是挂起锚的总开关 |
 | `guard` | `true` | 是否启用 turn-stopping 守卫 |
 | `onInterject` | `triage` | 插话时是否把挂起计划落盘（`triage`）；`off` = 只保留守卫 |
-| `returnPolicy` | `auto` | `auto` 把提醒递回回合；`wait` 只记录不催。**`wait` 不能中止正在跑的回合**，见 DESIGN §7.4 |
+| `returnPolicy` | `auto` | `auto` 把提醒递回回合；`wait` 只记录不催。单靠 `wait` **不能中止正在跑的回合**，见 DESIGN §7.4 |
+| `forceStop` | `false` | 插话落到 step 边界时直接停在那里，把这条消息交给下一回合；默认关，建议配 `returnPolicy: wait` 用 |
 | `triggerQueued` | `true` | 「下回合已有排队消息」是否也算触发条件 |
 | `skipWhenAsking` | `true` | 回合末句是提问时不催 |
 | `maxNudgesPerSession` | `6` | 每会话最多催几次；`0` = 只观察 |
@@ -111,7 +112,7 @@ Get-Item <DSH_HOME>/profiles/desktop/node_modules/dsh-task-anchor |
 
 ```powershell
 cd <本仓路径>
-node --test     # 37 条单测：策略判定 + apply() 接线，不需要启动 DSH
+node --test     # 40 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
 端到端手测（重启后）：
@@ -124,7 +125,7 @@ node --test     # 37 条单测：策略判定 + apply() 接线，不需要启动
 
 已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常；插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`；回合收尾出现 `[task-anchor]` notice；改写清单后快照被删。
 
-`returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。若模型仍然不理，插件没有任何办法中止一个正在跑的回合（`agent/turn-stopping` 只在回合已经决定收尾时才派发，`agent.steer()` 只能追加一步）。
+`returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。若模型仍然不理，`agent/turn-stopping` 没有任何办法中止一个正在跑的回合（`agent.steer()` 只能追加一步）。`forceStop: true` 把这个缺口用机械方式补上：`agent/pre-step` 里把这一批消息放回 `next-turn` 并返回 `reject`，这个 step 不会打开，`turn/end` 记成 `blocked`，下一回合从这条插话开始。尚未 live 验证。
 
 ## 现状
 

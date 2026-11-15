@@ -4,7 +4,7 @@
 
 ## 一句话状态
 
-v0.2.3 已实现、**37 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。`returnPolicy: wait` 实测过：守卫保持安静，但**回合没有停**（模型自己续跑），已补 `### Waiting for the user` 契约段，待重启复测；边界见 DESIGN §7.4。
+v0.3.0（未发布）已实现、**40 条单测通过**、已挂载进 desktop profile。三个机制都已在 live 会话里验收：契约段常驻、插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`、回合收尾时 `agent.steer` 递回一条 `[task-anchor]` notice；**取消路径**（改写清单 → 锚点消失 → 快照删除）也已跑通。`returnPolicy: wait` 实测过：守卫保持安静，但**回合没有停**（模型自己续跑），已补 `### Waiting for the user` 契约段；要机械停回合则开 `forceStop`（默认关，实现见 DESIGN §7.5，**尚未 live 验证**）。
 
 ## 要解决的问题（出处）
 
@@ -24,13 +24,14 @@ v0.2.3 已实现、**37 条单测通过**、已挂载进 desktop profile。三�
 | --- | --- | --- | --- |
 | 契约段 | `ctx.systemPrompt.section(...)`，order 540，每请求重新渲染 | 告诉模型：插话是新输入、不自动等于替换当前任务；五类关系 + 三类记账（取消/补充/挂起）+ 取消之后不再复述 + 用户回答你问过的问题（「可以」「go ahead」、选择、批准）是决定、要建 todo 并在回复里写清「跑了什么、回了什么」+ 双任务时何时拆 subagent、按什么顺序做 + 证据何时该落盘（重取昂贵的中间结论写成文件，todo 指向它）。没有挂起项时，末尾追加一行 `Open items: …`（todo 面板只在当轮可见，日志不是） | 否（system prompt，不污染转录） |
 | 挂起锚 | 同一 section，末尾追加 `## Suspended work` | 插话时把当时未完成的 todo 条目写进 `suspended-<session>.json`；之后每次组装按「挂起项 ∩ 当前未完成项」渲回 prompt（未完成项 + 打断它的那句话 + 停在哪 + 当时的会话事件号，可用 `session_event_read` 回读证据）；交集为空即删 | 是（每会话一份小 JSON） |
-| 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催（且**不能中止回合**，见 DESIGN §7.4） | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
+| 守卫 | `agent/turn-stopping` | 回合本该结束、但本回合收过插话（或下轮已有排队）且还有未完成 todo 时，`agent.steer()` 一条 `[task-anchor]` notice 把剩余计划递回去，代价是一次额外请求；`returnPolicy: wait` 时只记不催 | 是（一条持久 user 消息，kind `plugin:task-anchor`） |
+| 拦停（`forceStop`） | `agent/pre-step` → `reject` | 插话落到 step 边界时把这一批消息放回 `next-turn`，返回 `reject`：step 不打开、不花模型调用，`turn/end` 记 `blocked`，下一回合从这条插话开始。默认关 | 否（消息在 inbox 里，不是新事件） |
 
 不做的事（有意）：不判定插话与任务的关系（模型判）、不延迟/不阻止插话、不改 core 的逐字投影、不做 UI 标注、不替模型拆 subagent。
 
 ## 已有证据（真实输出）
 
-- 单测：`node --test` → `tests 37` / `pass 37` / `fail 0`（policy 19 + plugin 17 + store 1）。
+- 单测：`node --test` → `tests 40` / `pass 40` / `fail 0`（policy 17 + plugin 22 + store 1）。
 - 语法：`node --check lib/index.js`、`lib/policy.js`、`lib/store.js` 全部 exit 0。
 - profile 集成校验（headless 脚本）：`resolved: <本仓路径>` / `name matches: true` / `patch exists: true` / `entry: {"id":"task-anchor","name":"dsh-task-anchor"}` / `exported name matches id: true` / `bundle listed in profile: true`。
 - 符号链接：`node_modules/dsh-task-anchor` → 本仓目录（SymbolicLink）。
@@ -42,7 +43,7 @@ v0.2.3 已实现、**37 条单测通过**、已挂载进 desktop profile。三�
 
 ## 未验证（下一个会话从这里开始）
 
-1. **`returnPolicy: wait`**：补了模式感知契约后重启复测「处理完插话 → 报告 → 停」。若模型仍然续跑，说明软约束到顶，按 DESIGN §7.4 的结论处理（要机械保证只能改 DSH 核心）。
+1. **`forceStop`**：`returnPolicy: wait` + `forceStop: true` 重启后实测——插话到达时回合应立刻收尾（`turn/end` reason `blocked`，无 `step/start`），下一回合开头交付那条消息；同时确认没有出现「消息消失」或「同一 id 两次」。若 `setImmediate` 里 agent 不是 idle，消息应留在 `next-turn` 等下一个边界。
 2. 阈值调参：`maxNudgesPerSession=6`、`maxStaleTurns=3`、`maxNoticeItems=5` 都是拍的，需要真实使用后校准。
 3. 契约体积：现在约 320 tokens/请求且常驻；再有未完成项时多一行 `Open items:`（约 25 tokens）。可考虑「会话内出现过插话后才 sticky 出现」。
 4. 可选 UI 侧标注：让用户看见哪条是插话、哪条是插件 notice；以及让 todo 面板常驻（需改 DSH 前端，超出本仓范围）。
@@ -66,7 +67,7 @@ v0.2.3 已实现、**37 条单测通过**、已挂载进 desktop profile。三�
 - `lib/index.js`：`export const name = 'task-anchor'`；`NOTICE_SOURCE_KIND`；`SECTION_ORDER = 540`；`noticeMessage()`；`apply()`；`snapshotFor/forget/remember/anchorTextFor`；`agent/pre-step` 观察 + 落盘；`agent/turn-stopping` 维护锚点 + 守卫。
 - `lib/policy.js`：`isUserMessage` / `textOf` / `interjectionText` / `detectInterjection` / `assistantText` / `lastAssistantText` / `openTodos` / `buildContractText` / `buildAnchorText` / `buildOpenItemsText` / `buildNoticeText` / `normalizeConfig`（纯函数，全部单测覆盖）。
 - `lib/store.js`：`resolveStoreDir` / `snapshotFileName` / `saveSnapshot` / `loadSnapshot` / `removeSnapshot` / `pruneSnapshots`（零依赖，只有 fs）。
-- `cordis.patch.yml`：全量默认配置（`onInterject` / `returnPolicy` / `storeDir` 是新增项）+ id/name 约定说明。
+- `cordis.patch.yml`：全量默认配置（`onInterject` / `returnPolicy` / `forceStop` / `storeDir` 是新增项）+ id/name 约定说明。
 
 ## 回滚
 

@@ -58,35 +58,51 @@ function userMessage(text) {
   return { id: `m${nextId}`, role: 'user', content: [{ type: 'text', text }], source: { kind: 'user', rpcId: 'r' } }
 }
 
+/** A fake `agent` with the surfaces this plugin touches: log, inbox, steer, wake. */
+function makeAgent(sessionId, events, queued = []) {
+  const steered = []
+  const followed = []
+  const nextTurn = [...queued]
+  const agent = {
+    id: `agent-${sessionId}`,
+    status: 'idle',
+    // Session exposes the log via snapshotEvents(); the fake mirrors that
+    // surface only, so a stale `.events` read fails here instead of in prod.
+    session: { id: sessionId, snapshotEvents: () => events },
+    inbox: {
+      get nextTurn() {
+        return nextTurn
+      },
+      append(target, message) {
+        if (target === 'next-turn') nextTurn.push(message)
+      },
+      remove(messageId) {
+        const index = nextTurn.findIndex(pending => pending.id === messageId)
+        if (index === -1) return false
+        nextTurn.splice(index, 1)
+        return true
+      },
+    },
+    steer: message => steered.push(message),
+    followup: message => {
+      nextTurn.push(message)
+      followed.push(message)
+    },
+  }
+  return { agent, steered, followed, nextTurn }
+}
+
 /** A fake agent recording steered messages. */
 function fakeAgent(events, nextTurn = []) {
-  const steered = []
   nextSession += 1
-  return {
-    agent: {
-      id: 'agent-1',
-      // Session exposes the log via snapshotEvents(); the fake mirrors that
-      // surface only, so a stale `.events` read fails here instead of in prod.
-      session: { id: `session-${nextSession}`, snapshotEvents: () => events },
-      inbox: { nextTurn },
-      steer: message => steered.push(message),
-    },
-    steered,
-  }
+  const { agent, steered, followed } = makeAgent(`session-${nextSession}`, events, nextTurn)
+  return { agent, steered, followed }
 }
 
 /** A fake agent with a caller-owned log and session id. */
 function bareAgent(sessionId, events) {
-  const steered = []
-  return {
-    agent: {
-      id: `agent-${sessionId}`,
-      session: { id: sessionId, snapshotEvents: () => events },
-      inbox: { nextTurn: [] },
-      steer: message => steered.push(message),
-    },
-    steered,
-  }
+  const { agent, steered, followed } = makeAgent(sessionId, events)
+  return { agent, steered, followed }
 }
 
 /** Read a section body the way the prompt service does: provider or literal. */
@@ -423,4 +439,58 @@ test('the suspension block replaces the open items line', async () => {
   assert.match(body, /## Suspended work/)
   // One list, not two: the block already names the same items.
   assert.doesNotMatch(body, /Open items:/)
+})
+
+test('forceStop ends the turn at the interjection and hands it to the next turn', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { forceStop: true })
+  const { agent, followed } = fakeAgent(turnEvents('接着改。'))
+  const message = userMessage('停一下，先别动这个文件')
+
+  const decision = await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+
+  assert.deepEqual(decision, { kind: 'reject' })
+  assert.equal(agent.inbox.nextTurn.length, 1, 'parked before the turn closes')
+  assert.equal(followed.length, 0, 'a wake during the running phase is swallowed by the loop')
+  assert.equal(agent.status, 'idle')
+
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(followed.length, 1)
+  assert.equal(agent.inbox.nextTurn.length, 1, 'the wake must not duplicate the parked message')
+  assert.equal(agent.inbox.nextTurn[0].id, message.id)
+})
+
+test('forceStop leaves the parked message alone when the loop never goes idle', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, { forceStop: true })
+  const { agent, followed } = fakeAgent(turnEvents('接着改。'))
+  agent.status = 'running'
+  const message = userMessage('等会儿再说')
+
+  await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+  await new Promise(resolve => setImmediate(resolve))
+
+  assert.equal(followed.length, 0)
+  assert.equal(agent.inbox.nextTurn.length, 1, 'still delivered at the next boundary')
+})
+
+test('forceStop is off unless the config asks for it', async () => {
+  const { ctx, handlers } = fakeCtx()
+  apply(ctx, {})
+  const { agent } = fakeAgent(turnEvents('接着改。'))
+  const message = userMessage('顺手加个日志')
+
+  const decision = await handlers.get('agent/pre-step')(
+    { agent, turn: 1, step: 2, messages: [message], signal: new AbortController().signal },
+    async () => ({ kind: 'enter', messages: [message] }),
+  )
+
+  assert.equal(decision.kind, 'enter')
+  assert.equal(agent.inbox.nextTurn.length, 0)
 })

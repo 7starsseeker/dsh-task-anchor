@@ -74,7 +74,7 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 ## 6. 验证策略
 
-- 37 条单测：19 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、`Open items` 行、取消后不复述、授权后必须回报、`wait`/`auto` 两种收尾措辞）+ 17 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、`Open items` 三种形态、孤儿清扫）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
+- 40 条单测：17 条策略（分类、截断、过期、提问判定、默认值、锚点渲染、锚点里的转录事件号、`Open items` 行、取消后不复述、授权后必须回报、`wait`/`auto` 两种收尾措辞）+ 22 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判、落盘/重读/取消/久置不倒、`Open items` 三种形态、孤儿清扫、`forceStop` 的三条：停并交棒 / 没 idle 就留在队列 / 默认关）+ 1 条 store（只删别的会话的陈旧快照）。全部不需要启动 harness。
 - 端到端手测脚本见 README「验证」；日志关键字 `task-anchor: steered a reminder`。
 - 不写「假装通过」的集成测试：真实 turn-stopping 需要模型产出，成本高且不稳定；改为日志可观察 + 单测覆盖判定。
 
@@ -120,14 +120,29 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 `returnPolicy: wait` 只改一个分支：`agent/turn-stopping` 里提前 `return`，不发 steer。其余全部照旧——插话照样落盘、`## Suspended work` 照样渲染、`Open items:` 照样出现、todo 照样是唯一状态。
 
-**做不到**：中止一个正在跑的回合。DSH 没有给插件这个 API —— `agent/turn-stopping` 是回合「已经决定收尾」时才派发的事件，`agent.steer()` 只能往回合里追加一步，两者都不具备「打断」语义。所以 `wait` 模式下能请求停下的只有契约文字（`### Waiting for the user`），效果取决于模型是否照做。
+**做不到**（只开 `wait` 时）：中止一个正在跑的回合。`agent/turn-stopping` 是回合「已经决定收尾」时才派发的事件，`agent.steer()` 只能往回合里追加一步，两者都不具备「打断」语义。所以 `wait` 模式下能请求停下的只有契约文字（`### Waiting for the user`），效果取决于模型是否照做。
 
-2026-11-15 实测：只开 `wait` 时守卫确实没催，但回合也没有停 —— 模型自己接着把挂起计划做完了。这不是配置没生效，而是「不催」与「让它停」是两件事。要机械保证「停」，只能改 DSH 核心新增中断/暂停事件，属于本仓边界之外。
+2026-11-15 实测：只开 `wait` 时守卫确实没催，但回合也没有停 —— 模型自己接着把挂起计划做完了。这不是配置没生效，而是「不催」与「让它停」是两件事。
 
-需要「一定不自动续跑」的场景，实际可行的是：`wait` + 契约（软约束）+ 在插话里明确写「先别做 X，等我」。最后一条的可靠性远高于任何插件机制。
+**更正**：早先这里写着「要机械保证停，只能改 DSH 核心」，那句话是错的。`agent/pre-step` 的 waterfall 返回值就是这一步的 `PreStepDecision`，`reject` 会让 `turn()` 在打开 step 之前收尾 —— 不需要改核心。机械停的实现与代价见 §7.5。
+
+需要「软停」的场景仍然推荐：`wait` + 契约 + 在插话里明确写「先别做 X，等我」。需要「必定停」的场景用 `forceStop`。
+
+### 7.5 `forceStop`：唯一会拒绝一步的开关
+
+`agent/pre-step` 的 waterfall 返回值就是这一步要用的 `PreStepDecision`（`dsh-agent-loop/src/agent.ts:302-303`）。返回 `reject` 时，`turn()` 在 `:354-357` 把 `turnEnds` 记成 `blocked` 并直接返回：`this.step()` 不会被调用，没有 `step/start`，也不花模型调用。这是本插件唯一会**结束**回合的路径，默认关。
+
+三个必须处理的细节：
+
+1. **消息已经被 claim 走**（`:293` 在派发之前），`reject` 会把这一批消息连同 runtime-context 一起丢掉。所以先 `inbox.append('next-turn', message)`（持久化的 splice），再 `reject`。
+2. **唤醒要推迟**。驱动运行中收到的 wake 会被丢掉：`wakeDriver()` 只在 idle 相位起新 driver（`:235-255`），running 相位只有 maintenance 或「aborted 后的 send」会 latch。所以在 `setImmediate` 里等 `agent.status === 'idle'`，再 `followup()`；并且先 `inbox.remove(id)` 掉刚放回的那份，避免同一 id 出现两次。
+3. **失败不炸 turn**。放回、唤醒各包一层 try/catch，最坏情况是消息留在队列里等下一个边界交付（不丢）。
+
+代价：`turn/end` 的 reason 是 `blocked`，UI 上没有 assistant 收尾语；被停的那一步的 runtime-context 会被丢弃（下一回合重新组装）。这些都是「停下来」本身的意思，不是缺陷。
+
+为什么默认关：结束一个正在跑的回合是**代替用户**做决定，而插话可能只是顺口一问。开它是配置行为，不是默认行为。
 
 ## 8. 一次真实的静默失败（0.2.2-rc.3）
-
 守卫上线后在真实插话里没有 steer，日志里也没有 `steered a reminder`。根因不是事件名，而是插件读了 `agent.session.events`：
 
 - `dsh-session/src/index.ts:555` 的 `Session` 只有 `private log`，没有 `events`；公开读法是 `snapshotEvents()`（`:759-768`）。

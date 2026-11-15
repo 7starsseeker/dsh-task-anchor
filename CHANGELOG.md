@@ -2,6 +2,16 @@
 
 Net changes between **public releases**. Internal iterations that never shipped are not listed.
 
+## 0.3.0 — unreleased
+
+**Hard stop** (`forceStop: false` by default)
+
+- With `forceStop: true`, a mid-turn message no longer merely gets recorded: the `agent/pre-step` handler parks the claimed message into `next-turn`, returns `reject`, and the turn ends at that boundary (`turn/end` reason `blocked`) instead of spending a model call on the interruption. The parked message opens the next turn.
+- The parked copy is written to the durable inbox before the turn closes; the wake for the next turn is deferred to `setImmediate`, because a wake raised while the loop is still running is swallowed. If the agent never goes idle, the message stays pending and is delivered at the next boundary.
+- Off by default — ending a running turn is a stronger decision than writing the interruption down, and it is meant to be paired with `returnPolicy: wait`.
+
+**Config**: `forceStop` joins the key list. **Tests**: 40.
+
 ## 0.2.3 — 2026-11-15
 
 **Publishing**
