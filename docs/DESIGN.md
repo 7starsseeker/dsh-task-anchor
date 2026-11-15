@@ -61,7 +61,7 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 - 插话判定：`step > 1` 且批次含 `source.kind === 'user'`。`claim()` 的顺序决定了 step 1 的批次可能是 `[steering, opener]`，无法区分，故放过（已知边界）。
 - 任务锚：最近一次 `todo/write` 的 `pending`/`in_progress` 项；`maxStaleTurns` 之外的清单视为过期。todo 投影在 `turn/start` 清空的是 UI/wire 投影，日志仍在（`packages/todo/tool-todo/src/index.ts:140-143`）。
 - 不催的情形：末句是提问（`?`/`？` 结尾）、本回合已催、会话配额用尽、信号已 abort。
-- notice 的 `source.kind` 是 `plugin:dsh-task-anchor`：format v4 拒收 `{kind:'plugin', plugin:'<id>'}`（写得进去、读不回来），生产者必须用自己的 kind。
+- notice 的 `source.kind` 是 `plugin:task-anchor`：format v4 拒收 `{kind:'plugin', plugin:'<id>'}`（写得进去、读不回来），生产者必须用自己的 kind。
 
 ## 5. 失败模式
 
@@ -74,6 +74,6 @@ turn-stopping 的语义是「模型不欠响应」，监听器 `steer()` 会让�
 
 ## 6. 验证策略
 
-- 12 条纯策略单测：分类、截断、过期、提问判定、默认值。全部不需要启动 harness。
+- 21 条单测：12 条策略（分类、截断、过期、提问判定、默认值）+ 9 条接线（section 注册、steer 时机、单 turn 去重、abort、自产 notice 不误判）。全部不需要启动 harness。
 - 端到端手测脚本见 README「验证」；日志关键字 `task-anchor: steered a reminder`。
 - 不写「假装通过」的集成测试：真实 turn-stopping 需要模型产出，成本高且不稳定；改为日志可观察 + 单测覆盖判定。

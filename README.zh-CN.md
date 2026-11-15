@@ -88,7 +88,7 @@ Get-Item T:\Deepseek-harness\.dsh\profiles\desktop\node_modules\dsh-task-anchor 
 
 ```powershell
 cd T:\dsh-task-anchor
-node --test tests/     # 12 条纯策略单测，不需要启动 DSH
+node --test tests/     # 21 条单测：策略判定 + apply() 接线，不需要启动 DSH
 ```
 
 端到端手测（重启后）：

@@ -37,7 +37,7 @@ function notice(text) {
     id: `n${seq}`,
     role: 'user',
     content: [{ type: 'text', text }],
-    source: { kind: 'plugin:dsh-task-anchor', form: 'notice', summary: 'notice' },
+    source: { kind: 'plugin:task-anchor', form: 'notice', summary: 'notice' },
   }
 }
 
