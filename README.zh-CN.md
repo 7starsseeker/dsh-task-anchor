@@ -99,6 +99,12 @@ node --test tests/     # 21 条单测：策略判定 + apply() 接线，不需�
 
 日志关键字：`task-anchor: steered a reminder`（info）、`task-anchor: mid-turn user message observed`（debug）。
 
+已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常。守卫的端到端触发仍待手测。
+
+## 现状
+
+进度、证据、未验证项与下一步：见 [docs/STATUS.md](docs/STATUS.md)。设计取舍：见 [docs/DESIGN.md](docs/DESIGN.md)。
+
 ## 卸载
 
 从 profile 的 `dependencies` 与 `dsh.profile.bundles` 里删掉两行，`pnpm install`，重启。

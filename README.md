@@ -84,3 +84,9 @@ node --test tests/     # 21 tests: policy decisions + apply() wiring, no harness
 Manual end-to-end after a restart: give the agent a three-step task that starts with a todo list, inject an unrelated question during step 2, then check that a `[task-anchor]` notice appears before the turn closes and that the model accounts for the remaining items.
 
 Log keys: `task-anchor: steered a reminder` (info), `task-anchor: mid-turn user message observed` (debug).
+
+Confirmed 2026-11-15: after a restart the session system prompt contains the `## Mid-turn user messages` contract section, so the plugin loads and the section is injected. The guard's end-to-end trigger is still unverified.
+
+## Status
+
+Progress, evidence, open items, next steps: [docs/STATUS.md](docs/STATUS.md). Design rationale: [docs/DESIGN.md](docs/DESIGN.md).
