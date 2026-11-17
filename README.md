@@ -11,6 +11,8 @@ When a task is interrupted mid-flight, don't let the original task disappear.
 [![node](https://img.shields.io/badge/node-%3E%3D22.15-brightgreen.svg)](package.json)
 [![zero dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](package.json)
 [![DSH plugin](https://img.shields.io/badge/DSH-plugin-1F3A8A.svg)](https://github.com/7starsseeker)
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com/p/7starsseeker/dsh-task-anchor/)
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
 A zero-dependency DeepSeek Harness host plugin. **When a turn receives a mid-turn user message and ends with unfinished todos, it steers one notice back into that turn** so the model either finishes the work or states plainly what remains.
 
@@ -133,5 +135,3 @@ Confirmed 2026-11-15 on DSH 0.2.2-rc.3: after a restart the session system promp
 ## Status
 
 Progress, evidence, open items, next steps: [docs/STATUS.md](docs/STATUS.md). Design rationale: [docs/DESIGN.md](docs/DESIGN.md).
-
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
