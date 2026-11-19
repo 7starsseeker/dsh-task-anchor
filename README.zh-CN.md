@@ -132,6 +132,8 @@ node --test     # 52 条单测：策略判定 + apply() 接线，不需要启动
 
 已确认（2026-11-15）：重启后会话 system prompt 里出现契约段 `## Mid-turn user messages` ⇒ 插件加载与 section 注入正常；插话时落盘 `suspended-<session>.json` 并渲染 `## Suspended work`；回合收尾出现 `[task-anchor]` notice；改写清单后快照被删。
 
+2026-11-19 在 DSH 0.2.2-rc.5 上复检。这次是**依赖闭包 diff，不只是运行时证据**：`@deepseek-ai/dsh` 的 0.2.2-rc.3 与 0.2.2-rc.5 都从 npm 拉下来逐文件比对，本插件站立的每一个宿主包 —— `dsh-system-prompt`、`dsh-agent-loop`、`dsh-agent`、`dsh-session`、`dsh-tools`、`dsh-skill`、`dsh-app-boot`、`dsh-plugin-manager` —— **逐字节一致**，只有 `package.json` 的版本字段在动。真正改了代码的两个包（`dsh-llm-deepseek`：新增 `CONTENT_REFUSED` 错误码；`dsh-web`：按模型路由选搜索 provider）都不在本插件的契约面上，所以 rc.3 那轮确认的契约原样穿过 rc.4 与 rc.5。运行中的 rc.5 宿主上，契约段照常出现在会话 system prompt 里，`node --test` 本机 52/52。这一轮没复跑的：真实插话（本轮没有插话到达），因此 `suspended-<session>.json` 落盘、`[task-anchor]` notice 与 `forceStop` 路径没有重跑 —— 那些代码（`lib/index.js`、`lib/policy.js`）跑在没动过的宿主面上。
+
 `returnPolicy: wait` 也实测过一次：守卫如预期保持安静，**但回合没有停** —— 模型自己接着做挂起的那份计划了。这是能力边界：`wait` 只拿掉「催」这个动作，剩下的只有契约措辞能请求它停，所以补了 `### Waiting for the user` 明确写出来。**所以主路径不是强行停，而是上面那条同回合提示**：模型在插话落地的那一步就看到「挂起的是什么、刚来的是什么」，由它自己决定。`forceStop: always` 是实验性的机械停：`agent/pre-step` 里把这一批消息放回 `next-turn` 并返回 `reject`，这个 step 不会打开，`turn/end` 记成 `blocked`，下一回合从这条插话开始。2026-11-15 已 live 验证（`turn/end reason=blocked` → 消息在下一回合开头重新送达），同一次实测也暴露了代价：宿主播了「任务结束」提示音，用户体感就是「任务被打断」。`forceStop: triage` 把停的范围收窄到「不像取消、也不像补充修改」的插话；关键词启发式，尚未 live 验证。
 
 ### 实验性：硬停（`forceStop`）
